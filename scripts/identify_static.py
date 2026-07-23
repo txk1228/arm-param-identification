@@ -10,6 +10,7 @@ Pipeline:
 Usage:
   python scripts/identify_static.py
   python scripts/identify_static.py --method robust_wls --outlier-ratio 0.05
+  python scripts/identify_static.py --data-source file --data-path results/isaac_....npz
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ from param_id.estimators import irls_huber, ols, robust_wls
 from param_id.regressor import gravity_params_from_model, static_regressor
 from param_id.robot_model import build_model, joint_limits
 from param_id.trajectory import cosine_static_trajectory
+from utils.data_io import load_dataset
 
 
 def synthesize_static_data(
@@ -81,6 +83,19 @@ def synthesize_static_data(
     return Y, tau, outlier_mask
 
 
+def _build_static_Y(
+    model: pin.Model,
+    data: pin.Data,
+    q: np.ndarray,
+    dq: np.ndarray,
+    K_coulomb: float = 300.0,
+) -> np.ndarray:
+    """Stack static regressors for each sample (shared by both data sources)."""
+    return np.vstack(
+        [static_regressor(model, data, q[i], dq[i], K_coulomb=K_coulomb) for i in range(q.shape[0])]
+    )
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description="Static parameter identification demo")
     p.add_argument("--method", choices=["ols", "huber", "robust_wls"], default="huber")
@@ -92,7 +107,28 @@ def main() -> None:
     p.add_argument("--hetero-noise-scale", type=float, default=3.0)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--urdf", type=str, default=None, help="URDF path (default: auto)")
+    p.add_argument(
+        "--data-source",
+        choices=["pinocchio", "file"],
+        default="pinocchio",
+        help="pinocchio: synthesize torques; file: load unified NPZ from Isaac/etc.",
+    )
+    p.add_argument(
+        "--data-path",
+        type=str,
+        default=None,
+        help="NPZ path when --data-source=file (q,dq,ddq,tau,...).",
+    )
+    p.add_argument(
+        "--results-dir",
+        type=str,
+        default=None,
+        help="Output directory (default: results/ or results/isaac_static/ for file).",
+    )
     args = p.parse_args()
+
+    if args.data_source == "file" and not args.data_path:
+        p.error("--data-path is required when --data-source=file")
 
     rng = np.random.default_rng(args.seed)
     model, data, names, urdf = build_model(args.urdf)
@@ -100,30 +136,50 @@ def main() -> None:
     nv = model.nv
     print(f"[static] urdf={urdf.name}")
     print(f"[static] model nv={nv}, joints={names}")
-
-    t, q, dq = cosine_static_trajectory(
-        q_min, q_max, fs=args.fs, duration=args.duration
-    )
-    print(f"[static] samples={len(t)}, duration={args.duration}s")
+    print(f"[static] data_source={args.data_source}")
 
     pi_g_true = gravity_params_from_model(model)
-    pi_fc_true = rng.uniform(1.0, 5.0, size=nv)
-    print(f"[static] gravity params={pi_g_true.size}, friction={nv}")
+    K_coulomb = 300.0
 
-    Y, tau, outlier_mask = synthesize_static_data(
-        model,
-        data,
-        q,
-        dq,
-        pi_g_true,
-        pi_fc_true,
-        noise_std=args.noise_std,
-        outlier_ratio=args.outlier_ratio,
-        outlier_scale=args.outlier_scale,
-        hetero_noise_scale=args.hetero_noise_scale,
-        rng=rng,
-        K_coulomb=300.0,
-    )
+    if args.data_source == "file":
+        # External dataset: measured q/tau (+ dq for regressor columns).
+        ds = load_dataset(args.data_path)
+        q = np.asarray(ds["q"], dtype=float)
+        dq = np.asarray(ds["dq"], dtype=float)
+        tau_mat = np.asarray(ds["tau"], dtype=float)
+        if q.shape[1] != nv or tau_mat.shape[1] != nv:
+            raise ValueError(
+                f"dataset n_joint={q.shape[1]} / tau={tau_mat.shape[1]} != model nv={nv}"
+            )
+        t = np.arange(q.shape[0], dtype=float) * float(ds["dt"])
+        print(f"[static] loaded {args.data_path}  samples={len(t)} traj={ds['traj_type']}")
+        Y = _build_static_Y(model, data, q, dq, K_coulomb=K_coulomb)
+        tau = tau_mat.reshape(-1)
+        outlier_mask = np.zeros(q.shape[0], dtype=bool)
+        # Friction "truth" unknown for external logs; keep zeros for API compatibility.
+        pi_fc_true = np.zeros(nv)
+        print(f"[static] gravity params={pi_g_true.size}, friction={nv} (fc truth N/A)")
+    else:
+        t, q, dq = cosine_static_trajectory(
+            q_min, q_max, fs=args.fs, duration=args.duration
+        )
+        print(f"[static] samples={len(t)}, duration={args.duration}s")
+        pi_fc_true = rng.uniform(1.0, 5.0, size=nv)
+        print(f"[static] gravity params={pi_g_true.size}, friction={nv}")
+        Y, tau, outlier_mask = synthesize_static_data(
+            model,
+            data,
+            q,
+            dq,
+            pi_g_true,
+            pi_fc_true,
+            noise_std=args.noise_std,
+            outlier_ratio=args.outlier_ratio,
+            outlier_scale=args.outlier_scale,
+            hetero_noise_scale=args.hetero_noise_scale,
+            rng=rng,
+            K_coulomb=K_coulomb,
+        )
 
     # QR on gravity part only then append friction (always identifiable)
     n_g = pi_g_true.size
@@ -173,9 +229,14 @@ def main() -> None:
         tau_g_hat = Ygi @ pi_hat[: len(idx_g)]
         print(f"  posture {i}: err={np.linalg.norm(tau_g - tau_g_hat):.4f} N·m")
 
-    # Plot
-    out_dir = Path(__file__).resolve().parents[1] / "results"
-    out_dir.mkdir(exist_ok=True)
+    # Plot / save (file source -> results/isaac_static/ unless --results-dir)
+    if args.results_dir:
+        out_dir = Path(args.results_dir)
+    else:
+        out_dir = Path(__file__).resolve().parents[1] / "results"
+        if args.data_source == "file":
+            out_dir = out_dir / "isaac_static"
+    out_dir.mkdir(parents=True, exist_ok=True)
     fig, axes = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
     axes[0].plot(t, tau.reshape(-1, nv)[:, 0], lw=0.8, label="meas j0")
     axes[0].plot(t, tau_hat.reshape(-1, nv)[:, 0], lw=0.8, label="pred j0")
@@ -207,6 +268,7 @@ def main() -> None:
         rmse=rmse,
         rel_param=rel_param,
         joint_names=np.array(names),
+        data_source=np.array(args.data_source),
     )
 
 

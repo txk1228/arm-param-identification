@@ -1,0 +1,12 @@
+{
+  "venvPath": "/home/zj/miniconda3/envs",
+  "venv": "env_isaaclab",
+  "pythonVersion": "3.11",
+  "extraPaths": [
+    ".",
+    "/home/zj/isaac_t/IsaacLab/source/isaaclab",
+    "/home/zj/miniconda3/envs/env_isaaclab/lib/python3.11/site-packages/cmeel.prefix/lib/python3.11/site-packages"
+  ],
+  "reportMissingImports": "warning",
+  "reportAttributeAccessIssue": "none"
+}

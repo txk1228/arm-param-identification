@@ -1,0 +1,52 @@
+# Unified config for Stage-6 cross-comparison experiments.
+# Copied to results/comparison/experiment_config.yaml when running.
+
+experiment_name: stage6_cross_comparison
+kind: dynamic
+traj: fourier
+
+# Shared excitation (Pinocchio & Isaac must match)
+trajectory:
+  n_periods: 2
+  fourier_harmonics: 5
+  fundamental_freq: 0.1
+  dt: 0.01
+  seed: 0
+  subsample: 2
+
+# Isaac engineering acquisition
+isaac:
+  control_mode: pd_torque
+  kp: 200.0
+  kd: 20.0
+  enable_friction: true
+  friction_static: 0.5
+  friction_coulomb: 0.3
+  friction_viscous: 0.05
+  q_noise_std: 0.0001
+  tau_noise_std: 0.05
+  warmup_steps: 40
+  ddq_mode: ideal
+  headless: true
+
+# Emulation fallback if Isaac Sim fails to launch (same friction/noise numbers)
+emulation:
+  fc: 2.0          # Coulomb amplitude [N·m]
+  fv: 0.15         # viscous [N·m·s/rad]
+  outlier_ratio: 0.03
+  outlier_scale: 40.0
+
+# Three experiment arms
+groups:
+  - id: baseline
+    name: "基准组 Pinocchio理想+OLS"
+    data: pinocchio_ideal
+    method: ols
+  - id: phys_ols
+    name: "物理仿真组 Isaac工程+OLS"
+    data: isaac_eng
+    method: ols
+  - id: phys_robust
+    name: "鲁棒验证组 Isaac工程+robust_WLS"
+    data: isaac_eng
+    method: robust_wls

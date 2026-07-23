@@ -2,6 +2,8 @@
 
 Technical summary of the algorithms implemented in this repository.
 
+**中文版：** [`zh/METHOD.md`](zh/METHOD.md)
+
 ## Overall pipeline
 
 ```text

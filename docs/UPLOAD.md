@@ -3,6 +3,8 @@
 This git repository root **is** the `param_id` project folder (not the parent `txk` tree).
 Only files tracked here will be pushed.
 
+**中文版：** [`zh/UPLOAD.md`](zh/UPLOAD.md)
+
 ## Before `git push`
 
 1. Confirm proprietary CAD is ignored:

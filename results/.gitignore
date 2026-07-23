@@ -1,0 +1,9 @@
+*
+!.gitkeep
+!README.md
+!examples/
+!examples/**
+!comparison/
+!comparison/**
+!gravity_comp/
+!gravity_comp/**

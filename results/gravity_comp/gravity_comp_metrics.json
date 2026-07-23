@@ -1,0 +1,34 @@
+{
+  "mode": "offline",
+  "urdf": "/home/zj/txk/param_id/models/demo_7dof/demo_arm.urdf",
+  "id_result": "results/baseline/id_pinocchio_static/static_ols.npz",
+  "joints": [
+    "joint1",
+    "joint2",
+    "joint3",
+    "joint4",
+    "joint5",
+    "joint6",
+    "joint7"
+  ],
+  "metrics": {
+    "none": {
+      "mean_norm": 9.836982104644953,
+      "max_norm": 16.40273750668512,
+      "rms": 4.076891641577483
+    },
+    "urdf": {
+      "mean_norm": 0.0,
+      "max_norm": 0.0,
+      "rms": 0.0
+    },
+    "truth_rms": 4.076891641577483,
+    "identified": {
+      "mean_norm": 3.3683868509287255e-14,
+      "max_norm": 5.595251992286246e-14,
+      "rms": 1.351972318207254e-14
+    },
+    "id_vs_urdf_rms": 1.351972318207254e-14
+  },
+  "pass": true
+}

@@ -3,6 +3,8 @@
 Goal: run the full simulation flow on the demo (or your) URDF and understand
 \(τ = Yπ\), QR base parameters, Huber / whitened WLS, and Fourier excitation.
 
+**中文版：** [`zh/LEARNING.md`](zh/LEARNING.md)
+
 ---
 
 ## 0. Environment
@@ -13,15 +15,16 @@ cd <repo-root>
 export PARAM_ID_URDF=$PWD/models/demo_7dof/demo_arm.urdf
 ```
 
-Layout:
+Layout (full tree: [README.md](../README.md) / [docs/README.md](README.md)):
 
 ```
-param_id/                 # Python package
+param_id/                 # Python package (algorithms)
+utils/                    # Data I/O layer
 scripts/                  # CLI entry points
 models/demo_7dof/         # Public educational URDF
 assets/proprietary/       # Local private URDF/meshes (gitignored)
-docs/                     # Documentation
-results/                  # Run outputs
+docs/                     # Documentation index → docs/README.md
+results/                  # Run outputs → results/README.md
 ```
 
 Private multi-DoF CAD (if any) stays under `assets/proprietary/` and must not be

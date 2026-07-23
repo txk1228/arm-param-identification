@@ -10,6 +10,7 @@ Pipeline:
 Usage:
   python scripts/identify_dynamic.py
   python scripts/identify_dynamic.py --method robust_wls --outlier-ratio 0.05
+  python scripts/identify_dynamic.py --data-source file --data-path results/isaac_....npz
 """
 
 from __future__ import annotations
@@ -32,6 +33,7 @@ from param_id.estimators import irls_huber, ols, robust_wls
 from param_id.regressor import dynamics_regressor
 from param_id.robot_model import build_model, extract_inertial_params, joint_limits
 from param_id.trajectory import fourier_trajectory
+from utils.data_io import load_dataset
 
 
 def synthesize_dynamic_data(
@@ -74,6 +76,16 @@ def synthesize_dynamic_data(
     return Y, tau, outlier_mask
 
 
+def _build_dynamic_Y(model, data, q, dq, ddq, K_coulomb: float = 300.0) -> np.ndarray:
+    """Stack dynamic regressors for each sample (shared by both data sources)."""
+    return np.vstack(
+        [
+            dynamics_regressor(model, data, q[i], dq[i], ddq[i], K_coulomb=K_coulomb)
+            for i in range(q.shape[0])
+        ]
+    )
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description="Dynamic parameter identification demo")
     p.add_argument("--method", choices=["ols", "huber", "robust_wls"], default="robust_wls")
@@ -87,7 +99,28 @@ def main() -> None:
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--subsample", type=int, default=2, help="Use every k-th sample")
     p.add_argument("--urdf", type=str, default=None, help="URDF path (default: auto)")
+    p.add_argument(
+        "--data-source",
+        choices=["pinocchio", "file"],
+        default="pinocchio",
+        help="pinocchio: synthesize torques; file: load unified NPZ from Isaac/etc.",
+    )
+    p.add_argument(
+        "--data-path",
+        type=str,
+        default=None,
+        help="NPZ path when --data-source=file (q,dq,ddq,tau,...).",
+    )
+    p.add_argument(
+        "--results-dir",
+        type=str,
+        default=None,
+        help="Output directory (default: results/ or results/isaac_dynamic/ for file).",
+    )
     args = p.parse_args()
+
+    if args.data_source == "file" and not args.data_path:
+        p.error("--data-path is required when --data-source=file")
 
     rng = np.random.default_rng(args.seed)
     model, data, names, urdf = build_model(args.urdf)
@@ -95,42 +128,75 @@ def main() -> None:
     nv = model.nv
     print(f"[dynamic] urdf={urdf.name}")
     print(f"[dynamic] model nv={nv}, joints={names}")
-
-    t, q, dq, ddq = fourier_trajectory(
-        q_min,
-        q_max,
-        fs=args.fs,
-        fundamental_freq=args.fundamental_freq,
-        n_periods=args.n_periods,
-        harmonics=args.harmonics,
-        rng=rng,
-    )
-    # Subsample to keep QR/WLS manageable for learning runs
-    sl = slice(None, None, args.subsample)
-    t, q, dq, ddq = t[sl], q[sl], dq[sl], ddq[sl]
-    print(f"[dynamic] samples={len(t)} (subsample={args.subsample})")
+    print(f"[dynamic] data_source={args.data_source}")
 
     pi_inertial = extract_inertial_params(model)
-    pi_fc = rng.uniform(1.0, 5.0, size=nv)
-    pi_fv = rng.uniform(0.1, 0.5, size=nv)
-    pi_true = np.concatenate([pi_inertial, pi_fc, pi_fv])
-    print(
-        f"[dynamic] params: inertial={pi_inertial.size}, fc={nv}, fv={nv}, total={pi_true.size}"
-    )
+    K_coulomb = 300.0
 
-    Y, tau, outlier_mask = synthesize_dynamic_data(
-        model,
-        data,
-        q,
-        dq,
-        ddq,
-        pi_true,
-        noise_std=args.noise_std,
-        outlier_ratio=args.outlier_ratio,
-        outlier_scale=args.outlier_scale,
-        rng=rng,
-        K_coulomb=300.0,
-    )
+    if args.data_source == "file":
+        ds = load_dataset(args.data_path)
+        q = np.asarray(ds["q"], dtype=float)
+        dq = np.asarray(ds["dq"], dtype=float)
+        ddq = np.asarray(ds["ddq"], dtype=float)
+        tau_mat = np.asarray(ds["tau"], dtype=float)
+        if q.shape[1] != nv or tau_mat.shape[1] != nv:
+            raise ValueError(
+                f"dataset n_joint={q.shape[1]} / tau={tau_mat.shape[1]} != model nv={nv}"
+            )
+        t = np.arange(q.shape[0], dtype=float) * float(ds["dt"])
+        # Optional subsample (same knob as pinocchio path)
+        sl = slice(None, None, args.subsample)
+        t, q, dq, ddq, tau_mat = t[sl], q[sl], dq[sl], ddq[sl], tau_mat[sl]
+        print(
+            f"[dynamic] loaded {args.data_path}  samples={len(t)} "
+            f"(subsample={args.subsample}) traj={ds['traj_type']}"
+        )
+        # URDF inertial as reference; friction truth unknown for external logs.
+        pi_fc = np.zeros(nv)
+        pi_fv = np.zeros(nv)
+        pi_true = np.concatenate([pi_inertial, pi_fc, pi_fv])
+        print(
+            f"[dynamic] params: inertial={pi_inertial.size}, fc={nv}, fv={nv}, "
+            f"total={pi_true.size} (fc/fv truth N/A)"
+        )
+        Y = _build_dynamic_Y(model, data, q, dq, ddq, K_coulomb=K_coulomb)
+        tau = tau_mat.reshape(-1)
+        outlier_mask = np.zeros(q.shape[0], dtype=bool)
+    else:
+        t, q, dq, ddq = fourier_trajectory(
+            q_min,
+            q_max,
+            fs=args.fs,
+            fundamental_freq=args.fundamental_freq,
+            n_periods=args.n_periods,
+            harmonics=args.harmonics,
+            rng=rng,
+        )
+        # Subsample to keep QR/WLS manageable for learning runs
+        sl = slice(None, None, args.subsample)
+        t, q, dq, ddq = t[sl], q[sl], dq[sl], ddq[sl]
+        print(f"[dynamic] samples={len(t)} (subsample={args.subsample})")
+
+        pi_fc = rng.uniform(1.0, 5.0, size=nv)
+        pi_fv = rng.uniform(0.1, 0.5, size=nv)
+        pi_true = np.concatenate([pi_inertial, pi_fc, pi_fv])
+        print(
+            f"[dynamic] params: inertial={pi_inertial.size}, fc={nv}, fv={nv}, total={pi_true.size}"
+        )
+
+        Y, tau, outlier_mask = synthesize_dynamic_data(
+            model,
+            data,
+            q,
+            dq,
+            ddq,
+            pi_true,
+            noise_std=args.noise_std,
+            outlier_ratio=args.outlier_ratio,
+            outlier_scale=args.outlier_scale,
+            rng=rng,
+            K_coulomb=K_coulomb,
+        )
 
     idx, Yb, diag = select_base_columns(Y)
     print(f"[dynamic] QR: full cols={Y.shape[1]}, base={len(idx)}")
@@ -173,8 +239,13 @@ def main() -> None:
     rmse_te = float(np.sqrt(np.mean((tau_te - Yb_te @ pi_hat) ** 2)))
     print(f"          hold-out torque RMSE = {rmse_te:.4f} N·m")
 
-    out_dir = Path(__file__).resolve().parents[1] / "results"
-    out_dir.mkdir(exist_ok=True)
+    if args.results_dir:
+        out_dir = Path(args.results_dir)
+    else:
+        out_dir = Path(__file__).resolve().parents[1] / "results"
+        if args.data_source == "file":
+            out_dir = out_dir / "isaac_dynamic"
+    out_dir.mkdir(parents=True, exist_ok=True)
     fig, axes = plt.subplots(3, 1, figsize=(10, 8), sharex=False)
     axes[0].plot(t, q[:, 0], label="q0")
     axes[0].plot(t, q[:, 3], label="q3")
@@ -211,6 +282,7 @@ def main() -> None:
         rmse_te=rmse_te,
         rel_param=rel_param,
         joint_names=np.array(names),
+        data_source=np.array(args.data_source),
     )
 
 
