@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """Dynamic parameter identification: inertia + Coriolis + gravity + friction.
 
-Pipeline (matches internship PDF identify_dynamic_model.py):
+Pipeline:
   1) Pinocchio computeJointTorqueRegressor + Coulomb/viscous columns
   2) Pivoted QR base parameters
   3) Column-normalized WLS + whitening + Huber (+ optional outer hard reject)
   4) Fourier excitation, noise & outliers
 
 Usage:
-  conda activate env_isaaclab
-  cd ~/txk/param_id
   python scripts/identify_dynamic.py
   python scripts/identify_dynamic.py --method robust_wls --outlier-ratio 0.05
 """

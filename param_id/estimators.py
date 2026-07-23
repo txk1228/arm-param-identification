@@ -74,7 +74,7 @@ def robust_wls(
     max_outer: int = 10,
     tol: float = 1e-5,
 ) -> tuple[np.ndarray, dict]:
-    """Two-layer robust WLS used in the internship PDF.
+    """Two-layer robust WLS for stacked joint-torque samples.
 
     Samples are shaped as stacked per-timestep joint torques: tau length = N * nv.
     Inner: whiten by residual covariance Omega, Huber-weight, iterate.
@@ -140,7 +140,7 @@ def robust_wls(
         info["inner_iters"].append(inner_count)
 
         # Outer hard reject: any joint's whitened residual exceeds threshold
-        # (PDF uses 2.795; applied per-joint, matching single-joint outlier injection)
+        # (default 2.795; applied per-joint, matching single-joint outlier injection)
         Wsqrt = _whiten_matrix(Omega)
         rejected = 0
         for i in range(n_samples):

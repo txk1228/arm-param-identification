@@ -1,23 +1,14 @@
 #!/usr/bin/env python3
 """Excitation trajectory playback + collision check.
 
-对齐 PDF「Excitation Trajectory — Collision View」：
-  - 碰撞：Pinocchio + hppfcl（读 URDF collision mesh）
-  - 可视化：Trimesh SceneViewer（可自行录屏）
+- Collision: Pinocchio + hppfcl (URDF collision geometry)
+- Visualization: Trimesh SceneViewer
 
-你自己操作：
+Usage:
 
-  conda activate env_isaaclab
-  cd ~/txk/param_id
-
-  # A. 只做碰撞检查（无窗口，先跑这个）
   python scripts/collision_view.py --traj fourier --check-only
-  python scripts/collision_view.py --traj cosine --check-only
-  python scripts/collision_view.py --traj cv --check-only
-
-  # B. 打开 3D 窗口回放（录屏用这个）
   python scripts/collision_view.py --traj fourier --view
-  # 窗口快捷键: SPACE 播放/暂停 | ←/→ 单帧 | Q 退出
+  # Keys: SPACE play/pause | N/B step | arrows orbit | ESC quit
 """
 
 from __future__ import annotations

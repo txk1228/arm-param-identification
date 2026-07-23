@@ -23,7 +23,7 @@ def gravity_regressor_numeric(
 ) -> np.ndarray:
     """Build Y_g(q) by RNEA with one-body-at-a-time unit inertias.
 
-    Pinocchio has no analytic gravity regressor. Procedure (PDF §静力学):
+    Pinocchio has no analytic gravity regressor. Procedure:
       1. Zero all body inertias (including universe / fixed fused mass).
       2. For each body i and each of [m, mx, my, mz], place a unit parameter,
          run RNEA(q,0,0); that torque vector is one column of Y_g.

@@ -12,11 +12,13 @@ Simulation pipeline for **robot inertial & friction parameter identification** o
 - **Excitation:** Fourier series (dynamics) & slow cosine (statics)  
 - **Validation:** outlier injection, gravity-compensation check, trajectory collision playback  
 
-> This repository is a **self-contained simulation reproduction** for learning and portfolio use.  
-> It synthesizes joint torques from URDF ground-truth parameters (plus noise/outliers).  
-> Numbers here are **not** physical-robot identification accuracy.
+> This repository is a **self-contained simulation** of robot parameter identification
+> for study and open-source sharing. Joint torques are synthesized from URDF
+> ground-truth parameters (plus noise/outliers). Reported errors are **not**
+> hardware identification accuracy.
 
-中文说明见 [`docs/zh/README.md`](docs/zh/README.md)。
+中文说明见 [`docs/zh/README.md`](docs/zh/README.md)。  
+方法说明：[`docs/METHOD.md`](docs/METHOD.md) · 操作指南：[`docs/LEARNING.md`](docs/LEARNING.md)
 
 ---
 

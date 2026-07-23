@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """Static parameter identification: gravity + Coulomb friction.
 
-Pipeline (matches internship PDF):
+Pipeline:
   1) Numeric Y_g via RNEA finite differences
   2) Pivoted QR -> base columns
   3) Smooth Coulomb Y_f
   4) OLS / Huber-IRLS / robust WLS
 
 Usage:
-  conda activate env_isaaclab
-  cd ~/txk/param_id
   python scripts/identify_static.py
   python scripts/identify_static.py --method robust_wls --outlier-ratio 0.05
 """

@@ -1,8 +1,8 @@
-# 七自由度机械臂动力学 / 静力学参数辨识（仿真复现）
+# 七自由度机械臂动力学 / 静力学参数辨识（仿真）
 
-面向作品集 / GitHub 主页的开源仿真工程：用 Pinocchio 实现 \(τ=Yπ\) 回归辨识、QR 基参数、鲁棒最小二乘与激励轨迹验证。
+基于 Pinocchio 的开源仿真工程：实现 \(τ=Yπ\) 回归辨识、QR 基参数、鲁棒最小二乘与激励轨迹验证。
 
-**默认模型**为仓库自带的教学用 7-DoF 几何体臂（无专有 CAD）。本地若有私有 URDF，见 [`../assets/proprietary/README.md`](../assets/proprietary/README.md)。
+**默认模型**为仓库自带的教学用 7-DoF 几何体臂（无专有 CAD）。本地私有 URDF 见 [`../assets/proprietary/README.md`](../assets/proprietary/README.md)。
 
 ## 快速跑通
 
@@ -25,11 +25,11 @@ python scripts/collision_view.py   --traj fourier --check-only
 | 估计 | 重力 + 库仑摩擦 | 惯量 + 科氏/离心 + 重力 + 库仑/粘性 |
 | 用途 | 重力补偿 | 力矩前馈 |
 
-更细的掌握提纲：[`掌握要点.md`](掌握要点.md)  
-操作步骤：[`LEARNING.md`](LEARNING.md)
+- 方法说明：[`../METHOD.md`](../METHOD.md)  
+- 操作步骤：[`../LEARNING.md`](../LEARNING.md)
 
 ## 公开仓库注意
 
-- `meshes/` 与 `assets/proprietary/` 已被 `.gitignore`（含体积很大的 STL、可能涉密的机型文件）  
-- 上传 GitHub 前确认 **不会** 提交实习公司 URDF/网格  
-- 仿真 RMSE ≠ 真机辨识精度
+- `meshes/` 与 `assets/proprietary/` 下的机型文件已被 `.gitignore`  
+- 推送前确认不会提交未授权的 URDF / 网格  
+- 仿真误差指标 ≠ 真机辨识精度
