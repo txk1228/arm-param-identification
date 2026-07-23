@@ -1,0 +1,42 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Results (keep example figures only)
+results/*.npz
+results/*.txt
+results/*.png
+!results/examples/
+!results/examples/**
+
+# Large / proprietary robot assets — DO NOT commit company CAD
+meshes/
+assets/proprietary/urdf/
+assets/proprietary/meshes/
+assets/proprietary/*.json
+assets/proprietary/**/*.STL
+assets/proprietary/**/*.stl
+assets/proprietary/**/*.urdf
+
+# Local overrides
+.env
+PARAM_ID_URDF
+*.log

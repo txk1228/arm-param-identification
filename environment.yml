@@ -1,0 +1,12 @@
+name: param-id
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pinocchio>=2.6
+  - numpy
+  - scipy
+  - matplotlib
+  - trimesh
+  - pyglet=1.5
+  - pip
