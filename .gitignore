@@ -40,3 +40,6 @@ assets/proprietary/**/*.urdf
 .env
 PARAM_ID_URDF
 *.log
+
+# Personal notes (not for public repo)
+docs/private/

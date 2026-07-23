@@ -383,14 +383,11 @@ python scripts/verify_gravity_compensation.py \
 ## 公开仓库注意事项
 
 - `meshes/`、`assets/proprietary/` 下机型文件已 gitignore
-- 推送前确认无未授权 URDF / 网格（见 [`../UPLOAD.md`](../UPLOAD.md)）
+- 推送前确认无未授权 URDF / 网格（见 [`UPLOAD.md`](UPLOAD.md)）
 - 仿真误差 ≠ 真机辨识精度
 
 ---
 
-## 作者与许可
-
-**仝小可 (Tong Xiaoke)** — 东北大学控制科学与工程  
-GitHub: [txk1228](https://github.com/txk1228)
+## 许可
 
 MIT License — 见 [LICENSE](../../LICENSE)

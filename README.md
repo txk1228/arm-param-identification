@@ -379,13 +379,6 @@ Example figures: [`results/examples/`](results/examples/), [`results/comparison/
 
 ---
 
-## Author
-
-**Tong Xiaoke (仝小可)** — Control Science & Engineering, Northeastern University  
-GitHub: [txk1228](https://github.com/txk1228)
-
----
-
 ## License
 
 MIT — see [LICENSE](LICENSE).
