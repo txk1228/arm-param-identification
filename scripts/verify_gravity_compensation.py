@@ -378,11 +378,16 @@ def _write_outputs(result: dict, out_dir: Path) -> None:
     plt.close(fig)
 
     # Markdown summary
+    urdf_disp = result["urdf"]
+    try:
+        urdf_disp = str(Path(urdf_disp).resolve().relative_to(Path.cwd().resolve()))
+    except ValueError:
+        urdf_disp = Path(urdf_disp).name
     lines = [
         "# Gravity compensation verification",
         "",
         f"- mode: `{result['mode']}`",
-        f"- urdf: `{result['urdf']}`",
+        f"- urdf: `{urdf_disp}`",
         f"- id_result: `{result.get('id_result')}`",
         f"- pass: **{result.get('pass')}**",
         "",

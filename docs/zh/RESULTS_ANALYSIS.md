@@ -1,14 +1,13 @@
 # 结果分析指南
 
-本文对照仓库已生成的图表，说明**怎么读结果、Isaac 演示怎么跑**。  
-适合自学复盘。
+对照仓库已生成图表，说明指标含义、读图要点与复现命令。
 
-算法原理见 [`METHOD.md`](METHOD.md)；实操步骤见 [`LEARNING.md`](LEARNING.md)；总览见 [`README.md`](README.md)。
+算法原理见 [`METHOD.md`](METHOD.md)；管线复现见 [`LEARNING.md`](LEARNING.md)；总览见 [`README.md`](README.md)。
 
 > **数据说明（当前 `results/comparison/`）**  
-> 交叉对比默认尝试 Isaac Lab 实采；若仿真未启动成功，会回退为  
+> 交叉对比默认尝试 Isaac Lab 实采；若仿真未启动，回退为  
 > `Pinocchio + 摩擦/噪声/异常点` 代理数据（`--skip-isaac`）。  
-> **算法与接口与 Isaac 路径相同**；若数据来自代理而非 Isaac，说明时需标明来源。
+> **算法与接口与 Isaac 路径相同**；说明结果时需标明数据来源。
 
 相关图：
 
@@ -21,11 +20,9 @@
 
 ---
 
-## 1. 项目里有没有 “Isaac Demo”？
+## 1. Demo 入口
 
-**有演示入口，但分两层：**
-
-### 1.1 纯算法 Demo（不启 Isaac，必跑）
+### 1.1 纯算法（不启 Isaac）
 
 ```bash
 conda activate env_isaaclab   # 或 param-id
@@ -34,25 +31,25 @@ export PARAM_ID_URDF=$PWD/models/demo_7dof/demo_arm.urdf
 bash scripts/run_demo.sh
 ```
 
-会跑：回归自检 → 静力学/动力学辨识 → 碰撞检查。结果在 `results/`。
+执行：回归自检 → 静力学/动力学辨识 → 碰撞检查。输出目录：`results/`。
 
-### 1.2 Isaac 采集 Demo（需要本机 Isaac Lab / GPU）
+### 1.2 Isaac 采集（需本机 Isaac Lab / GPU）
 
-完整命令（**带 GUI / 无头 / 工程化 / 辨识**）见：  
+完整命令见：  
 [`docs/zh/README.md` → Isaac Lab Demo](README.md#isaac-lab-demo带-gui--无头) · 英文 [`README.md`](../../README.md#isaac-lab-demo-gui--headless)
 
 ```bash
 conda activate env_isaaclab
 export PARAM_ID_URDF=$PWD/models/demo_7dof/demo_arm.urdf
 
-# 最短可视化：去掉 --headless 可开 GUI
+# 可视化：去掉 --headless 可开 GUI
 python scripts/collect_data_isaaclab.py \
   --mode dynamic --traj fourier --n-periods 1 --dt 0.01 \
   --ddq-mode ideal --control-mode position_servo \
   --save-path results/baseline/isaac_demo_fourier.npz
 ```
 
-工程化一点（PD + 摩擦 + 噪声，默认无头）：
+工程化采集（PD + 摩擦 + 噪声，默认无头）：
 
 ```bash
 python scripts/collect_data_isaaclab.py \
@@ -62,7 +59,7 @@ python scripts/collect_data_isaaclab.py \
   --headless --save-path results/baseline/isaac_eng_fourier.npz
 ```
 
-采集完辨识：
+采集后辨识：
 
 ```bash
 python scripts/identify_dynamic.py --method robust_wls \
@@ -70,38 +67,33 @@ python scripts/identify_dynamic.py --method robust_wls \
   --results-dir results/isaac_dynamic
 ```
 
-一键对照（含 Isaac，失败自动代理）：
+一键对照（含 Isaac；失败则代理）：
 
 ```bash
 bash scripts/run_comparison_experiments.sh
-# 或纯离线展示：
+# 或纯离线：
 bash scripts/run_comparison_experiments.sh --skip-isaac
 ```
 
-**没有单独的 “Isaac 官方示例场景包”**；本仓库的 demo 就是：  
-用教学 URDF → Lab 跟踪激励轨迹 → 写出统一 NPZ → 复用原辨识脚本。
+本仓库无独立 Isaac 官方场景包；演示路径为：教学 URDF → Lab 跟踪激励 → 统一 NPZ → 复用辨识脚本。
 
 ---
 
-## 2. 三组实验怎么串起来看
+## 2. 三组实验的递进逻辑
 
-建议阅读顺序：
+| 顺序 | 组别 | 目的 |
+|------|------|------|
+| 1 | 基准组 | 理想数据误差 ≈ 0 → 验证 \(τ=Yπ\)、QR、求解链路 |
+| 2 | 工程组 | 摩擦 + 噪声 + 异常点 → 观察 OLS 退化 |
+| 3 | 鲁棒组 | 同一脏数据 + robust WLS → 压低内点误差；再接重力补偿闭环 |
 
-1. **基准组** — 理想数据上误差 ≈ 0，证明 \(τ=Yπ\)、QR、求解链路正确。  
-2. **工程组** — 摩擦 + 噪声 + 异常点后，普通 OLS 变差。  
-3. **鲁棒组** — 同一份脏数据上，robust WLS **压低内点误差**；再接重力补偿闭环。
-
-核心结构：
-
-> 数据层（Pinocchio 合成 / Isaac 采集）与算法层解耦；同一 NPZ 接口切换估计器。
+数据层（Pinocchio 合成 / Isaac 采集）与算法层解耦；同一 NPZ 接口切换估计器。
 
 ---
 
-## 3. 交叉对比图怎么读
+## 3. 交叉对比图解读
 
-实验配置见 `results/comparison/experiment_config.yaml`（轨迹、PD、摩擦、噪声统一）。
-
-三组定义：
+配置见 `results/comparison/experiment_config.yaml`（轨迹、PD、摩擦、噪声统一）。
 
 | 组别 | 数据 | 算法 |
 |------|------|------|
@@ -111,16 +103,16 @@ bash scripts/run_comparison_experiments.sh --skip-isaac
 
 ### 3.1 分关节扭矩 RMSE（`fig_rmse_per_joint.png`）
 
-**纵轴**：各关节拟合力矩 RMSE（N·m），含全部样本。
+纵轴：各关节拟合力矩 RMSE（N·m），含全部样本。
 
-**怎么读：**
+| 现象 | 含义 |
+|------|------|
+| 蓝柱（Baseline）≈ 0 | 理想工况下回归复现力矩 → 链路正确 |
+| 橙/绿柱升高 | 引入摩擦、噪声、异常后，全样本 RMSE 约 1.2–4.3 N·m |
+| 关节不均（如 j3、j4） | 与构型、力矩量级、摩擦激励有关 |
+| 橙 ≈ 绿（全样本） | 鲁棒法降权/剔除异常；全样本 RMSE 未必更低，应看**内点 RMSE** |
 
-- **蓝柱（Baseline）≈ 0**：理想工况下回归几乎完美复现力矩 → 链路正确。  
-- **橙/绿柱明显升高**：引入摩擦、噪声、异常后，**全部样本 RMSE** 到约 1.2–4.3 N·m。  
-- **关节不均**：例如 j3、j4 往往更大 —— 与构型、力矩量级、摩擦激励强弱有关，不是“程序坏了”。  
-- **橙 ≈ 绿（全样本）**：鲁棒方法会**降权/剔除异常点**；全样本 RMSE 不一定更低，要看 **内点 RMSE**。
-
-**对应数字（本次 summary）：**
+本次 `summary.json`：
 
 | | 全样本 RMSE | 内点 RMSE |
 |--|------------:|----------:|
@@ -128,7 +120,7 @@ bash scripts/run_comparison_experiments.sh --skip-isaac
 | Eng. OLS | 2.70 | **0.24** |
 | Eng. robust WLS | 2.71 | **0.05** |
 
-→ 读图时优先看：**内点 0.24 → 0.05（约 5×）**，这才是 robust 的意义。
+优先对比内点：0.24 → 0.05（约 5×），即 robust 的工程意义。
 
 ### 3.2 基参数相对误差（`fig_rel_param.png`）
 
@@ -140,29 +132,30 @@ bash scripts/run_comparison_experiments.sh --skip-isaac
 | Eng. OLS | ~299% |
 | Eng. robust WLS | ~308% |
 
-**务必正确解读（容易讲错）：**
+解读要点：
 
-- 工程数据里力矩 = 惯性动力学 + **摩擦** + 噪声 + 异常；  
-  对比真值却是「URDF 惯量 + **摩擦真值=0**」。  
-- 因此相对误差会被摩擦/异常**系统性拉大**，**不能**说成“辨识完全失败”。  
-- 更合理的工程指标是：**力矩预测内点误差、重力补偿残差、交叉验证**。  
-- Baseline = 0% 用来证明：在匹配的数据生成模型下，基参数可唯一恢复。
+- 工程力矩 = 惯性动力学 + **摩擦** + 噪声 + 异常；对照真值为「URDF 惯量 + **摩擦=0**」。
+- 相对误差被摩擦/异常系统性抬高，**不能**单独作为失败判据。
+- 工程指标优先：**力矩内点 RMSE、重力补偿残差、交叉验证**。
+- Baseline = 0%：在匹配的数据生成模型下，基参数可唯一恢复。
 
 ### 3.3 关节 0 力矩曲线（`fig_torque_joint0.png`）
 
-三行子图，灰线 meas、红线 pred。
+三行子图：灰线 meas、红线 pred。
 
-1. **上：Baseline** — 两线重合，RMSE=0 → “数学链路 OK”。  
-2. **中：Eng.+OLS** — 可见尖峰异常、曲线变“糙”；红线跟大趋势但吃尖峰；全样本 RMSE≈2.4，内点≈0.24。  
-3. **下：Eng.+robust WLS** — 外形与中图接近，但 **inlier≈0.05**：异常被抑制，主趋势拟合更干净。
+| 子图 | 读法 |
+|------|------|
+| Baseline | 两线重合，RMSE=0 → 数学链路正确 |
+| Eng.+OLS | 可见尖峰；红线跟趋势但受尖峰影响；全样本 RMSE≈2.4，内点≈0.24 |
+| Eng.+robust WLS | 外形接近中图，内点≈0.05：异常被抑制，主趋势更干净 |
 
-讲解时可指着尖峰说：真机采集常见尖峰/丢包，robust 的价值在此。
+尖峰/丢包在真机采集中常见；robust 估计用于抑制其对拟合的主导作用。
 
 ---
 
-## 4. 重力补偿结果（`fig_residual_bars.png`）
+## 4. 重力补偿（`fig_residual_bars.png`）
 
-离线验证（Pinocchio RNEA 为真值，辨识结果来自理想静力学 NPZ）：
+离线验证（Pinocchio RNEA 为真值；辨识结果来自理想静力学 NPZ）：
 
 | 模式 | mean ‖残差‖ | max ‖残差‖ |
 |------|------------:|-----------:|
@@ -170,16 +163,14 @@ bash scripts/run_comparison_experiments.sh --skip-isaac
 | URDF GC | ~0 | ~0 |
 | Identified GC | ~1e-14 | ~1e-14 |
 
-**含义：**
-
-- 无补偿时残余就是重力矩量级。  
-- 理想静力学辨识得到的 \(\hatπ_g\) 与 URDF 一致时，补偿残差到数值噪声 → **辨识→力控前馈**闭环在仿真上成立。  
-- Isaac 版：`python scripts/verify_gravity_compensation.py --headless ...`  
-  看 hold 时 PD 残余是否下降、拖动时末端受力是否平滑运动。
+- 无补偿时残差为重力矩量级。
+- 理想静力学辨识的 \(\hatπ_g\) 与 URDF 一致时，补偿残差至数值噪声 → 辨识→力控前馈闭环在仿真上成立。
+- Isaac：`python scripts/verify_gravity_compensation.py --headless ...`  
+  关注 hold 时 PD 残余与拖动时末端受力是否平滑。
 
 ---
 
-## 5. 推荐复现命令（学习用）
+## 5. 复现命令
 
 ```bash
 conda activate env_isaaclab
@@ -189,7 +180,7 @@ export PARAM_ID_URDF=$PWD/models/demo_7dof/demo_arm.urdf
 # A. 算法 demo
 bash scripts/run_demo.sh
 
-# B. 再生成本文图表（离线代理，稳定可复现）
+# B. 再生成本文图表（离线代理）
 bash scripts/run_comparison_experiments.sh --skip-isaac
 cat results/comparison/conclusion.md
 
@@ -208,14 +199,14 @@ python scripts/collect_data_isaaclab.py \
 
 ## 6. 常见问题
 
-**Q1：为什么理想数据误差是 0，工程数据基参数误差却很大？**  
-因为工程力矩含摩擦与异常，而相对误差对照的是「无摩擦 URDF 基参数」。应同时报力矩内点误差与补偿残差。
+**Q1：理想数据误差为 0，工程数据基参数误差却很大？**  
+工程力矩含摩擦与异常，相对误差对照「无摩擦 URDF 基参数」。应同时报力矩内点误差与补偿残差。
 
-**Q2：robust WLS 全样本 RMSE 并不更低，为什么还要用？**  
-全样本含被降权的异常点；看 **inlier RMSE**（本次约 0.24→0.05）和曲线是否被尖峰带偏。
+**Q2：robust WLS 全样本 RMSE 并不更低，为何仍用？**  
+全样本含被降权的异常点；看 **inlier RMSE**（本次约 0.24→0.05）及曲线是否被尖峰带偏。
 
-**Q3：Isaac 和 Pinocchio 各干什么？**  
-Pinocchio：解析回归器与基参数理论；Isaac：PhysX 采集与力控验证。中间用统一 NPZ 解耦。
+**Q3：Isaac 与 Pinocchio 的分工？**  
+Pinocchio：解析回归器与基参数；Isaac：PhysX 采集与力控验证。中间以统一 NPZ 解耦。
 
 ---
 
@@ -226,11 +217,11 @@ Pinocchio：解析回归器与基参数理论；Isaac：PhysX 采集与力控验
 ```text
 results/comparison/     # 三组对照图 + conclusion.md + summary.json
 results/gravity_comp/   # 重力补偿残差图
-results/examples/       # 早期静/动力学示例图
+results/examples/       # 静/动力学示例图
 results/baseline/       # 对齐/导出 NPZ、静力学 ID 结果等
 scripts/run_demo.sh
 scripts/collect_data_isaaclab.py
 scripts/run_comparison_experiments.sh
 scripts/verify_gravity_compensation.py
-docs/README.md          # 文档索引
+docs/README.md
 ```

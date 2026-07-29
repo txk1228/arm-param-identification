@@ -81,9 +81,9 @@ Validation: noise + outlier spikes; inlier RMSE; gravity-compensation check;
 
 ## Experiment log (optional)
 
-Date: ________
-
-Statics OLS gravity-compensation error ≈ ________  
-Statics robust WLS gravity-compensation error ≈ ________  
-Parameter changed / observation: ________  
-Takeaway: ________
+| Item | Value |
+|------|-------|
+| Date | ________ |
+| Statics OLS gravity-compensation error | ________ |
+| Statics robust WLS gravity-compensation error | ________ |
+| Parameter change / observation | ________ |

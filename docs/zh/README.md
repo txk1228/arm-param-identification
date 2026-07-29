@@ -11,7 +11,7 @@
 
 > **说明：** 默认 Pinocchio 路径从 URDF 真值合成力矩（可加噪声/异常点），用于**方法与管线验证**，不代表真机辨识精度。
 
-**English:** [`../../README.md`](../../README.md) · **算法原理：** [`METHOD.md`](METHOD.md) · **自学：** [`LEARNING.md`](LEARNING.md)
+**English:** [`../../README.md`](../../README.md) · **算法原理：** [`METHOD.md`](METHOD.md) · **管线复现：** [`LEARNING.md`](LEARNING.md)
 
 ---
 
@@ -21,16 +21,16 @@
 |------|------|
 | [`README.md`](README.md) | 本页：项目总览、环境、Isaac Demo、工作流 |
 | [`METHOD.md`](METHOD.md) | **算法原理**（回归器、QR、鲁棒估计） |
-| [`LEARNING.md`](LEARNING.md) | **自学实操**（逐步跑通 + 理论↔代码对照） |
+| [`LEARNING.md`](LEARNING.md) | **管线复现**（分阶段执行 + 概念↔代码对照） |
 | [`BASELINE_ALIGNMENT.md`](BASELINE_ALIGNMENT.md) | Pinocchio vs Isaac 理想工况对齐（&lt; 5%） |
-| [`RESULTS_ANALYSIS.md`](RESULTS_ANALYSIS.md) | 如何读对比图与重力补偿结果 |
+| [`RESULTS_ANALYSIS.md`](RESULTS_ANALYSIS.md) | 指标解读、读图要点与复现命令 |
 | [`UPLOAD.md`](UPLOAD.md) | 公开仓库推送前检查 |
 | [`../README.md`](../README.md) | 文档总索引（中英对照） |
 | [`../../results/README.md`](../../results/README.md) | `results/` 输出目录说明 |
 
 英文原文在 `docs/` 根目录（如 `docs/METHOD.md`）；中文在 `docs/zh/`。
 
-**建议阅读顺序：** 本 README → [`METHOD.md`](METHOD.md) → [`LEARNING.md`](LEARNING.md) → [`RESULTS_ANALYSIS.md`](RESULTS_ANALYSIS.md)
+**推荐阅读顺序：** 本 README → [`METHOD.md`](METHOD.md) → [`LEARNING.md`](LEARNING.md) → [`RESULTS_ANALYSIS.md`](RESULTS_ANALYSIS.md)
 
 ---
 
@@ -132,7 +132,7 @@ conda activate param-id
 
 # 方案 B：含 Isaac Lab（推荐，支持 PhysX 采集）
 conda activate env_isaaclab
-pip install -r requirements.txt   # 缺啥补啥
+pip install -r requirements.txt   # 按需补齐依赖
 ```
 
 指定 URDF：
@@ -141,9 +141,7 @@ pip install -r requirements.txt   # 缺啥补啥
 export PARAM_ID_URDF=$PWD/models/demo_7dof/demo_arm.urdf
 ```
 
-**Cursor / VS Code：** 解释器选  
-`/home/zj/miniconda3/envs/env_isaaclab/bin/python`  
-（不要用系统 `/bin/python3`，否则会缺 `matplotlib` / `pinocchio`）。
+**Cursor / VS Code：** 解释器选 conda 环境 `env_isaaclab`（或 `param-id`）中的 Python，勿用系统 `/bin/python3`（缺少 `matplotlib` / `pinocchio`）。
 
 ---
 
@@ -168,7 +166,7 @@ python scripts/collision_view.py   --traj fourier --check-only
 
 ## Isaac Lab Demo（带 GUI / 无头）
 
-本仓库**没有**单独的 Isaac 官方场景包。演示入口就是  
+本仓库**没有**单独的 Isaac 官方场景包。演示入口为  
 `scripts/collect_data_isaaclab.py`（加载 URDF → 跟踪激励轨迹 → 写出 NPZ）。
 
 ### 前置
@@ -181,11 +179,11 @@ export PARAM_ID_URDF=$PWD/models/demo_7dof/demo_arm.urdf
 
 > **导入顺序：** 脚本必须在 `AppLauncher` **之前**导入 Pinocchio。  
 > 若先启动 Kit 再加载 Pinocchio，会出现 `Startup Complete` 后立刻  
-> `Shutting Down`（pybind 冲突）。不要改动脚本里的 import 顺序。
+> `Shutting Down`（pybind 冲突）。勿改动脚本中的 import 顺序。
 
-### A) 带 GUI — 看机械臂运动
+### A) 带 GUI — 可视化跟踪
 
-**去掉** `--headless`，Isaac Sim 会开窗口：
+省略 `--headless`，Isaac Sim 打开窗口：
 
 ```bash
 python scripts/collect_data_isaaclab.py \
@@ -194,9 +192,9 @@ python scripts/collect_data_isaaclab.py \
   --save-path results/baseline/isaac_demo_fourier.npz
 ```
 
-可选：`--device cuda:0`。录制结束或关窗后，NPZ 写在 `results/baseline/`。
+可选：`--device cuda:0`。录制结束或关闭窗口后，NPZ 写入 `results/baseline/`。
 
-### B) 无头 — 只采数据
+### B) 无头 — 仅采集
 
 ```bash
 python scripts/collect_data_isaaclab.py \
@@ -205,7 +203,7 @@ python scripts/collect_data_isaaclab.py \
   --save-path results/baseline/isaac_demo_fourier.npz
 ```
 
-### C) 工程化采集（更接近真机）
+### C) 工程化采集（接近真机条件）
 
 ```bash
 python scripts/collect_data_isaaclab.py \
@@ -216,9 +214,9 @@ python scripts/collect_data_isaaclab.py \
   --save-path results/baseline/isaac_eng_fourier.npz
 ```
 
-若要带 GUI，同一命令去掉 `--headless` 即可。
+若需 GUI，同一命令去掉 `--headless`。
 
-### D) 用采集到的 NPZ 辨识
+### D) 基于采集 NPZ 辨识
 
 ```bash
 python scripts/identify_dynamic.py --method robust_wls \
@@ -226,10 +224,10 @@ python scripts/identify_dynamic.py --method robust_wls \
   --results-dir results/isaac_dynamic
 ```
 
-### E) 重力补偿 Demo（Isaac）
+### E) 重力补偿验证（Isaac）
 
 ```bash
-# 无头：保持姿态 + 末端拖拽指标
+# 无头：姿态保持 + 末端拖拽指标
 python scripts/verify_gravity_compensation.py --headless \
   --id-result results/static_ols.npz --out-dir results/gravity_comp
 
@@ -261,7 +259,9 @@ from utils.data_io import save_dataset, load_dataset
 
 ---
 
-## 工作流
+## 工作流（递进）
+
+任务按依赖顺序拆解：静力学 → 动力学 → 数据采集 → 基准对齐 → 交叉对比 → 闭环验证。
 
 ### 1. 静力学辨识（重力补偿）
 
@@ -287,13 +287,13 @@ python scripts/identify_static.py --method robust_wls
 python scripts/identify_dynamic.py --method robust_wls --n-periods 3
 ```
 
-### 3. Isaac Lab 数据采集（参数表）
+### 3. Isaac Lab 数据采集
 
 需要 **Isaac Lab**（测试环境约 0.54 / Isaac Sim 5.x）。完整 GUI / 无头命令见上文 **[Isaac Lab Demo](#isaac-lab-demo带-gui--无头)**。
 
 | 参数 | 说明 |
 |------|------|
-| `--headless` | 无 GUI。**去掉此参数** 即可开窗看机械臂 |
+| `--headless` | 无 GUI。省略此参数则打开 Isaac Sim 窗口 |
 | `--control-mode` | `position_servo`（隐式 PD）/ `pd_torque`（显式 τ = Kp·e + Kd·ė） |
 | `--ideal-physics` | 仅重力，关关节摩擦（基准对齐用） |
 | `--enable-friction` | PhysX 静摩擦 / 库仑 / 粘性 |
@@ -314,9 +314,9 @@ bash scripts/run_baseline_alignment.sh
 
 三组对照 → `results/comparison/`：
 
-1. **基准组** — Pinocchio 理想数据 + OLS
-2. **物理组** — 工程数据（PD + 摩擦 + 噪声）+ OLS
-3. **鲁棒组** — 同一工程数据 + robust WLS
+1. **基准组** — Pinocchio 理想数据 + OLS（验证链路）
+2. **物理组** — 工程数据（PD + 摩擦 + 噪声）+ OLS（观察退化）
+3. **鲁棒组** — 同一工程数据 + robust WLS（对比内点拟合）
 
 ```bash
 bash scripts/run_comparison_experiments.sh          # 优先 Isaac，失败则代理数据
@@ -332,7 +332,7 @@ bash scripts/run_comparison_experiments.sh --skip-isaac   # 纯离线
 python scripts/verify_gravity_compensation.py --offline \
   --id-result results/static_ols.npz --out-dir results/gravity_comp
 
-# Isaac 无头：保持姿态 + 末端拖拽
+# Isaac 无头：姿态保持 + 末端拖拽
 python scripts/verify_gravity_compensation.py --headless \
   --id-result results/static_ols.npz --out-dir results/gravity_comp
 
@@ -345,20 +345,20 @@ python scripts/verify_gravity_compensation.py \
 
 ---
 
-## 如何读结果
+## 结果解读
 
-| 实验 | 看什么 |
-|------|--------|
+| 实验 | 关注指标 |
+|------|----------|
 | 理想基准组 | 力矩 RMSE ≈ 0，基参数误差 ≈ 0% → 管线正确 |
 | 工程 OLS | 全样本 RMSE 高（含异常点）；**内点 RMSE** 约 0.24 N·m |
-| 工程 robust WLS | **内点 RMSE** 约 0.05 N·m（比 OLS 约好 5 倍） |
+| 工程 robust WLS | **内点 RMSE** 约 0.05 N·m（相对 OLS 约 5×） |
 | 重力补偿离线 | 辨识重力补偿残差 ≈ 机器精度 |
 
-### 关于「基参数相对误差 300%」
+### 关于工程组「基参数相对误差 300%」
 
-工程组力矩 = 惯量动力学 + **摩擦** + 噪声 + 稀疏异常，但对照真值是「URDF 惯量 + **摩擦=0**」。辨识器会把摩擦也拟合进参数向量，与无摩擦真值相比，相对误差被系统性拉到 200%–300%。
+工程组力矩 = 惯量动力学 + **摩擦** + 噪声 + 稀疏异常，对照真值为「URDF 惯量 + **摩擦=0**」。摩擦项被拟合进参数向量后，相对无摩擦真值会出现 200%–300% 的系统性偏差。
 
-**这不代表辨识失败。** 工程上应看：
+该现象**不代表辨识失败**。工程指标应优先：
 
 - **力矩内点 RMSE**（OLS 0.24 → robust 0.05）
 - **重力补偿残差**

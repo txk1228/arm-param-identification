@@ -1,7 +1,7 @@
 # Gravity compensation verification
 
 - mode: `offline`
-- urdf: `/home/zj/txk/param_id/models/demo_7dof/demo_arm.urdf`
+- urdf: `models/demo_7dof/demo_arm.urdf`
 - id_result: `results/baseline/id_pinocchio_static/static_ols.npz`
 - pass: **True**
 

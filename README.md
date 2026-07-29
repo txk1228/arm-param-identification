@@ -26,7 +26,7 @@ Simulation and identification pipeline for **robot inertial and friction paramet
 |-----|-------------|
 | [`docs/README.md`](docs/README.md) | Full documentation index (EN + 中文) |
 | [`docs/zh/METHOD.md`](docs/zh/METHOD.md) | **算法原理（中文）** / [EN](docs/METHOD.md) |
-| [`docs/zh/LEARNING.md`](docs/zh/LEARNING.md) | **自学路径（中文）** / [EN](docs/LEARNING.md) |
+| [`docs/zh/LEARNING.md`](docs/zh/LEARNING.md) | **管线复现（中文）** / [EN](docs/LEARNING.md) |
 | [`docs/zh/BASELINE_ALIGNMENT.md`](docs/zh/BASELINE_ALIGNMENT.md) | Baseline alignment（中文） |
 | [`docs/zh/RESULTS_ANALYSIS.md`](docs/zh/RESULTS_ANALYSIS.md) | How to read comparison figures |
 | [`docs/zh/README.md`](docs/zh/README.md) | 中文总览 |
@@ -142,9 +142,7 @@ Set the demo URDF (or your own):
 export PARAM_ID_URDF=$PWD/models/demo_7dof/demo_arm.urdf
 ```
 
-**Cursor / VS Code:** select interpreter  
-`/home/zj/miniconda3/envs/env_isaaclab/bin/python`  
-(do **not** use system `/bin/python3` — it lacks `matplotlib` / `pinocchio`).
+**Cursor / VS Code:** select the conda env `env_isaaclab` (or `param-id`) interpreter — not system `/bin/python3` (missing `matplotlib` / `pinocchio`).
 
 ---
 
@@ -186,7 +184,7 @@ export PARAM_ID_URDF=$PWD/models/demo_7dof/demo_arm.urdf
 > Starting Kit first then loading Pinocchio can make the app exit right after  
 > `Simulation App Startup Complete` (pybind conflict). Do not reorder those imports.
 
-### A) GUI demo — watch the arm move
+### A) GUI demo — visualize tracking
 
 Omit `--headless` so Isaac Sim opens a window:
 
@@ -266,6 +264,8 @@ from utils.data_io import save_dataset, load_dataset
 
 ## Workflows
 
+Stages follow dependency order: statics → dynamics → collection → baseline alignment → cross-comparison → closed-loop verification.
+
 ### 1. Static identification (gravity compensation)
 
 | | |
@@ -290,13 +290,13 @@ python scripts/identify_static.py --method robust_wls
 python scripts/identify_dynamic.py --method robust_wls --n-periods 3
 ```
 
-### 3. Isaac Lab data collection (flags)
+### 3. Isaac Lab data collection
 
 Requires **Isaac Lab** (tested ~0.54 / Isaac Sim 5.x). Full GUI / headless demos: see **[Isaac Lab demo](#isaac-lab-demo-gui--headless)** above.
 
 | Flag | Meaning |
 |------|---------|
-| `--headless` | No GUI. **Omit this flag** to open Isaac Sim and watch the arm |
+| `--headless` | No GUI. Omit this flag to open the Isaac Sim window |
 | `--control-mode` | `position_servo` (implicit PD) or `pd_torque` (explicit τ = Kp·e + Kd·ė) |
 | `--ideal-physics` | Gravity only; no joint friction (baseline alignment) |
 | `--enable-friction` | PhysX static / Coulomb / viscous friction |
@@ -317,9 +317,9 @@ bash scripts/run_baseline_alignment.sh
 
 Three arms → `results/comparison/`:
 
-1. **Baseline** — Pinocchio ideal + OLS
-2. **Physics** — Engineering data (PD + friction + noise) + OLS
-3. **Robust** — Same engineering data + robust whitened WLS
+1. **Baseline** — Pinocchio ideal + OLS (validate pipeline)
+2. **Physics** — Engineering data (PD + friction + noise) + OLS (observe degradation)
+3. **Robust** — Same engineering data + robust whitened WLS (compare inlier fit)
 
 ```bash
 bash scripts/run_comparison_experiments.sh          # tries Isaac; falls back to proxy
