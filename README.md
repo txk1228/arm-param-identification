@@ -152,6 +152,7 @@ No Isaac required.
 
 ```bash
 bash scripts/run_demo.sh
+# Chinese console: bash scripts/run_demo_zh.sh
 ```
 
 Or step by step:

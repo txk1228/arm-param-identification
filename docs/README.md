@@ -18,3 +18,23 @@
 
 **中文文档阅读顺序：**  
 [`zh/README.md`](zh/README.md) → [`zh/METHOD.md`](zh/METHOD.md) → [`zh/LEARNING.md`](zh/LEARNING.md) → [`zh/RESULTS_ANALYSIS.md`](zh/RESULTS_ANALYSIS.md)
+
+---
+
+## One-shot demo / 一键演示
+
+| Script | Console language | Notes |
+|--------|------------------|-------|
+| [`scripts/run_demo.sh`](../scripts/run_demo.sh) | English | Default public demo |
+| [`scripts/run_demo_zh.sh`](../scripts/run_demo_zh.sh) | 中文 | Same pipeline; metric hints in Chinese |
+
+Both run: sanity check → static ID → dynamic ID → collision check. Outputs under `results/`.
+
+Language is controlled by `PARAM_ID_LANG` (`en` / `zh`), implemented in [`utils/cli_lang.py`](../utils/cli_lang.py). Example:
+
+```bash
+PARAM_ID_LANG=zh python scripts/identify_static.py --method robust_wls
+```
+
+**环境：** `conda activate param-id`（方案 A）或 `env_isaaclab`（方案 B，含 Isaac）。  
+详见 [`zh/README.md`](zh/README.md) / [`../README.md`](../README.md)。

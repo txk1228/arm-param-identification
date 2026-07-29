@@ -29,6 +29,8 @@ import pinocchio as pin
 _ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_ROOT))
 
+from utils.cli_lang import t as tr  # noqa: E402
+
 from param_id.base_params import select_base_columns
 from param_id.estimators import irls_huber, ols, robust_wls
 from param_id.regressor import gravity_params_from_model, static_regressor
@@ -134,9 +136,19 @@ def main() -> None:
     model, data, names, urdf = build_model(args.urdf)
     q_min, q_max = joint_limits(model)
     nv = model.nv
-    print(f"[static] urdf={urdf.name}")
-    print(f"[static] model nv={nv}, joints={names}")
-    print(f"[static] data_source={args.data_source}")
+    print(tr(f"[static] urdf={urdf.name}", f"[静力学] URDF={urdf.name}"))
+    print(
+        tr(
+            f"[static] model nv={nv}, joints={names}",
+            f"[静力学] 自由度 nv={nv}, 关节={names}",
+        )
+    )
+    print(
+        tr(
+            f"[static] data_source={args.data_source}",
+            f"[静力学] 数据源={args.data_source}",
+        )
+    )
 
     pi_g_true = gravity_params_from_model(model)
     K_coulomb = 300.0
@@ -152,20 +164,40 @@ def main() -> None:
                 f"dataset n_joint={q.shape[1]} / tau={tau_mat.shape[1]} != model nv={nv}"
             )
         t = np.arange(q.shape[0], dtype=float) * float(ds["dt"])
-        print(f"[static] loaded {args.data_path}  samples={len(t)} traj={ds['traj_type']}")
+        print(
+            tr(
+                f"[static] loaded {args.data_path}  samples={len(t)} traj={ds['traj_type']}",
+                f"[静力学] 已加载 {args.data_path}  样本数={len(t)} 轨迹={ds['traj_type']}",
+            )
+        )
         Y = _build_static_Y(model, data, q, dq, K_coulomb=K_coulomb)
         tau = tau_mat.reshape(-1)
         outlier_mask = np.zeros(q.shape[0], dtype=bool)
         # Friction "truth" unknown for external logs; keep zeros for API compatibility.
         pi_fc_true = np.zeros(nv)
-        print(f"[static] gravity params={pi_g_true.size}, friction={nv} (fc truth N/A)")
+        print(
+            tr(
+                f"[static] gravity params={pi_g_true.size}, friction={nv} (fc truth N/A)",
+                f"[静力学] 重力参数维数={pi_g_true.size}, 摩擦维数={nv}（外部数据无摩擦真值）",
+            )
+        )
     else:
         t, q, dq = cosine_static_trajectory(
             q_min, q_max, fs=args.fs, duration=args.duration
         )
-        print(f"[static] samples={len(t)}, duration={args.duration}s")
+        print(
+            tr(
+                f"[static] samples={len(t)}, duration={args.duration}s",
+                f"[静力学] 样本数={len(t)}, 时长={args.duration}s",
+            )
+        )
         pi_fc_true = rng.uniform(1.0, 5.0, size=nv)
-        print(f"[static] gravity params={pi_g_true.size}, friction={nv}")
+        print(
+            tr(
+                f"[static] gravity params={pi_g_true.size}, friction={nv}",
+                f"[静力学] 重力参数维数={pi_g_true.size}, 摩擦维数={nv}",
+            )
+        )
         Y, tau, outlier_mask = synthesize_static_data(
             model,
             data,
@@ -187,8 +219,18 @@ def main() -> None:
     Yf = Y[:, n_g:]
     # Stack a subset for QR rank (use all)
     idx_g, _, diag = select_base_columns(Yg)
-    print(f"[static] QR: full gravity cols={n_g}, base={len(idx_g)}")
-    print(f"         R diag head={np.array2string(diag[:8], precision=3)}")
+    print(
+        tr(
+            f"[static] QR: full gravity cols={n_g}, base={len(idx_g)}",
+            f"[静力学] QR：全重力列={n_g} → 基参数={len(idx_g)}",
+        )
+    )
+    print(
+        tr(
+            f"         R diag head={np.array2string(diag[:8], precision=3)}",
+            f"         R 对角前几项={np.array2string(diag[:8], precision=3)}",
+        )
+    )
 
     Yb = np.hstack([Y[:, idx_g], Yf])
     pi_true_b = np.concatenate([pi_g_true[idx_g], pi_fc_true])
@@ -211,23 +253,54 @@ def main() -> None:
         np.linalg.norm(pi_hat - pi_true_b) / (np.linalg.norm(pi_true_b) + 1e-12)
     )
 
-    print(f"[static] method={args.method}")
-    print(f"         torque RMSE (all)    = {rmse:.4f} N·m")
-    print(f"         torque RMSE (inlier) = {rmse_in:.4f} N·m")
-    print(f"         base-param relative error = {rel_param:.4f}")
+    print(tr(f"[static] method={args.method}", f"[静力学] 估计方法={args.method}"))
+    print(
+        tr(
+            f"         torque RMSE (all)    = {rmse:.4f} N·m",
+            f"         力矩 RMSE（全部样本）= {rmse:.4f} N·m  ← 含异常点，通常偏高",
+        )
+    )
+    print(
+        tr(
+            f"         torque RMSE (inlier) = {rmse_in:.4f} N·m",
+            f"         力矩 RMSE（内点）    = {rmse_in:.4f} N·m  ← 优先看此项",
+        )
+    )
+    print(
+        tr(
+            f"         base-param relative error = {rel_param:.4f}",
+            f"         基参数相对误差       = {rel_param:.4f}",
+        )
+    )
     if args.method == "robust_wls":
-        print(f"         rejected samples = {info.get('n_rejected')} / {len(t)}")
-        print(f"         true outliers     = {int(outlier_mask.sum())}")
+        print(
+            tr(
+                f"         rejected samples = {info.get('n_rejected')} / {len(t)}",
+                f"         剔除样本数 = {info.get('n_rejected')} / {len(t)}",
+            )
+        )
+        print(
+            tr(
+                f"         true outliers     = {int(outlier_mask.sum())}",
+                f"         注入异常点数 = {int(outlier_mask.sum())}",
+            )
+        )
 
     # Predict gravity compensation at a few postures (zero velocity friction~0)
     q_test = q[:: max(1, len(q) // 5)]
-    print("[static] gravity compensation check (||tau_g_true - tau_g_pred||):")
+    print(
+        tr(
+            "[static] gravity compensation check (||tau_g_true - tau_g_pred||):",
+            "[静力学] 重力补偿检查（||τ_g真值 − τ_g预测||，越小越好）：",
+        )
+    )
     for i, qi in enumerate(q_test[:5]):
         Ygi = static_regressor(model, data, qi, np.zeros(nv))[:, :n_g][:, idx_g]
         # true gravity only
         tau_g = pin.rnea(model, data, qi, np.zeros(nv), np.zeros(nv))
         tau_g_hat = Ygi @ pi_hat[: len(idx_g)]
-        print(f"  posture {i}: err={np.linalg.norm(tau_g - tau_g_hat):.4f} N·m")
+        err = np.linalg.norm(tau_g - tau_g_hat)
+        print(tr(f"  posture {i}: err={err:.4f} N·m", f"  姿态 {i}: 误差={err:.4f} N·m"))
 
     # Plot / save (file source -> results/isaac_static/ unless --results-dir)
     if args.results_dir:
@@ -258,7 +331,12 @@ def main() -> None:
     fig.tight_layout()
     fig_path = out_dir / f"static_{args.method}.png"
     fig.savefig(fig_path, dpi=140)
-    print(f"[static] saved figure -> {fig_path}")
+    print(
+        tr(
+            f"[static] saved figure -> {fig_path}",
+            f"[静力学] 已保存图 → {fig_path}",
+        )
+    )
 
     np.savez(
         out_dir / f"static_{args.method}.npz",

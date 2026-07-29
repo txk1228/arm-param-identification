@@ -28,6 +28,8 @@ import numpy as np
 _ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_ROOT))
 
+from utils.cli_lang import t as tr  # noqa: E402
+
 from param_id.base_params import select_base_columns
 from param_id.estimators import irls_huber, ols, robust_wls
 from param_id.regressor import dynamics_regressor
@@ -126,9 +128,19 @@ def main() -> None:
     model, data, names, urdf = build_model(args.urdf)
     q_min, q_max = joint_limits(model)
     nv = model.nv
-    print(f"[dynamic] urdf={urdf.name}")
-    print(f"[dynamic] model nv={nv}, joints={names}")
-    print(f"[dynamic] data_source={args.data_source}")
+    print(tr(f"[dynamic] urdf={urdf.name}", f"[动力学] URDF={urdf.name}"))
+    print(
+        tr(
+            f"[dynamic] model nv={nv}, joints={names}",
+            f"[动力学] 自由度 nv={nv}, 关节={names}",
+        )
+    )
+    print(
+        tr(
+            f"[dynamic] data_source={args.data_source}",
+            f"[动力学] 数据源={args.data_source}",
+        )
+    )
 
     pi_inertial = extract_inertial_params(model)
     K_coulomb = 300.0
@@ -148,16 +160,24 @@ def main() -> None:
         sl = slice(None, None, args.subsample)
         t, q, dq, ddq, tau_mat = t[sl], q[sl], dq[sl], ddq[sl], tau_mat[sl]
         print(
-            f"[dynamic] loaded {args.data_path}  samples={len(t)} "
-            f"(subsample={args.subsample}) traj={ds['traj_type']}"
+            tr(
+                f"[dynamic] loaded {args.data_path}  samples={len(t)} "
+                f"(subsample={args.subsample}) traj={ds['traj_type']}",
+                f"[动力学] 已加载 {args.data_path}  样本数={len(t)} "
+                f"（抽稀={args.subsample}）轨迹={ds['traj_type']}",
+            )
         )
         # URDF inertial as reference; friction truth unknown for external logs.
         pi_fc = np.zeros(nv)
         pi_fv = np.zeros(nv)
         pi_true = np.concatenate([pi_inertial, pi_fc, pi_fv])
         print(
-            f"[dynamic] params: inertial={pi_inertial.size}, fc={nv}, fv={nv}, "
-            f"total={pi_true.size} (fc/fv truth N/A)"
+            tr(
+                f"[dynamic] params: inertial={pi_inertial.size}, fc={nv}, fv={nv}, "
+                f"total={pi_true.size} (fc/fv truth N/A)",
+                f"[动力学] 参数：惯量={pi_inertial.size}, 库仑={nv}, 粘性={nv}, "
+                f"合计={pi_true.size}（外部数据无摩擦真值）",
+            )
         )
         Y = _build_dynamic_Y(model, data, q, dq, ddq, K_coulomb=K_coulomb)
         tau = tau_mat.reshape(-1)
@@ -175,13 +195,23 @@ def main() -> None:
         # Subsample to keep QR/WLS manageable for learning runs
         sl = slice(None, None, args.subsample)
         t, q, dq, ddq = t[sl], q[sl], dq[sl], ddq[sl]
-        print(f"[dynamic] samples={len(t)} (subsample={args.subsample})")
+        print(
+            tr(
+                f"[dynamic] samples={len(t)} (subsample={args.subsample})",
+                f"[动力学] 样本数={len(t)}（抽稀={args.subsample}）",
+            )
+        )
 
         pi_fc = rng.uniform(1.0, 5.0, size=nv)
         pi_fv = rng.uniform(0.1, 0.5, size=nv)
         pi_true = np.concatenate([pi_inertial, pi_fc, pi_fv])
         print(
-            f"[dynamic] params: inertial={pi_inertial.size}, fc={nv}, fv={nv}, total={pi_true.size}"
+            tr(
+                f"[dynamic] params: inertial={pi_inertial.size}, fc={nv}, fv={nv}, "
+                f"total={pi_true.size}",
+                f"[动力学] 参数：惯量={pi_inertial.size}, 库仑={nv}, 粘性={nv}, "
+                f"合计={pi_true.size}",
+            )
         )
 
         Y, tau, outlier_mask = synthesize_dynamic_data(
@@ -199,8 +229,18 @@ def main() -> None:
         )
 
     idx, Yb, diag = select_base_columns(Y)
-    print(f"[dynamic] QR: full cols={Y.shape[1]}, base={len(idx)}")
-    print(f"          R diag head={np.array2string(diag[:10], precision=2)}")
+    print(
+        tr(
+            f"[dynamic] QR: full cols={Y.shape[1]}, base={len(idx)}",
+            f"[动力学] QR：全列={Y.shape[1]} → 基参数={len(idx)}",
+        )
+    )
+    print(
+        tr(
+            f"          R diag head={np.array2string(diag[:10], precision=2)}",
+            f"         R 对角前几项={np.array2string(diag[:10], precision=2)}",
+        )
+    )
     pi_true_b = pi_true[idx]
 
     if args.method == "ols":
@@ -221,13 +261,38 @@ def main() -> None:
         np.linalg.norm(pi_hat - pi_true_b) / (np.linalg.norm(pi_true_b) + 1e-12)
     )
 
-    print(f"[dynamic] method={args.method}")
-    print(f"          torque RMSE (all)    = {rmse:.4f} N·m")
-    print(f"          torque RMSE (inlier) = {rmse_in:.4f} N·m")
-    print(f"          base-param relative error = {rel_param:.4f}")
+    print(tr(f"[dynamic] method={args.method}", f"[动力学] 估计方法={args.method}"))
+    print(
+        tr(
+            f"          torque RMSE (all)    = {rmse:.4f} N·m",
+            f"         力矩 RMSE（全部样本）= {rmse:.4f} N·m  ← 含异常点，通常偏高",
+        )
+    )
+    print(
+        tr(
+            f"          torque RMSE (inlier) = {rmse_in:.4f} N·m",
+            f"         力矩 RMSE（内点）    = {rmse_in:.4f} N·m  ← 优先看此项",
+        )
+    )
+    print(
+        tr(
+            f"          base-param relative error = {rel_param:.4f}",
+            f"         基参数相对误差       = {rel_param:.4f}",
+        )
+    )
     if args.method == "robust_wls":
-        print(f"          rejected samples = {info.get('n_rejected')} / {len(t)}")
-        print(f"          true outliers     = {int(outlier_mask.sum())}")
+        print(
+            tr(
+                f"          rejected samples = {info.get('n_rejected')} / {len(t)}",
+                f"         剔除样本数 = {info.get('n_rejected')} / {len(t)}",
+            )
+        )
+        print(
+            tr(
+                f"          true outliers     = {int(outlier_mask.sum())}",
+                f"         注入异常点数 = {int(outlier_mask.sum())}",
+            )
+        )
 
     # Cross-check: hold-out last 20% time for prediction RMSE
     n = len(t)
@@ -237,7 +302,12 @@ def main() -> None:
     tau_te = tau[-n_te * nv :]
     Yb_te = Y_te[:, idx]
     rmse_te = float(np.sqrt(np.mean((tau_te - Yb_te @ pi_hat) ** 2)))
-    print(f"          hold-out torque RMSE = {rmse_te:.4f} N·m")
+    print(
+        tr(
+            f"          hold-out torque RMSE = {rmse_te:.4f} N·m",
+            f"         留出集力矩 RMSE     = {rmse_te:.4f} N·m",
+        )
+    )
 
     if args.results_dir:
         out_dir = Path(args.results_dir)
@@ -271,7 +341,12 @@ def main() -> None:
     fig.tight_layout()
     fig_path = out_dir / f"dynamic_{args.method}.png"
     fig.savefig(fig_path, dpi=140)
-    print(f"[dynamic] saved figure -> {fig_path}")
+    print(
+        tr(
+            f"[dynamic] saved figure -> {fig_path}",
+            f"[动力学] 已保存图 → {fig_path}",
+        )
+    )
 
     np.savez(
         out_dir / f"dynamic_{args.method}.npz",

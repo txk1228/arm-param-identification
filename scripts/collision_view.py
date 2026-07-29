@@ -27,6 +27,7 @@ sys.path.insert(0, str(_ROOT))
 
 from param_id.robot_model import build_model, joint_limits, package_dirs_for
 from param_id.trajectory import cosine_static_trajectory, fourier_trajectory
+from utils.cli_lang import t as tr
 
 ROOT = _ROOT
 
@@ -313,29 +314,69 @@ def main() -> None:
 
     model, data, names, urdf_path = build_model(args.urdf)
     q_min, q_max = joint_limits(model)
-    print(f"[collision_view] urdf={urdf_path.name}")
-    print(f"[collision_view] joints={names}")
-    print(f"[collision_view] loading collision geometry...")
+    print(tr(f"[collision_view] urdf={urdf_path.name}", f"[碰撞检查] URDF={urdf_path.name}"))
+    print(tr(f"[collision_view] joints={names}", f"[碰撞检查] 关节={names}"))
+    print(
+        tr(
+            "[collision_view] loading collision geometry...",
+            "[碰撞检查] 正在加载碰撞几何…",
+        )
+    )
     geom = build_collision_model(model, urdf_path)
     gdata = pin.GeometryData(geom)
-    print(f"[collision_view] geoms={geom.ngeoms}, pairs={len(geom.collisionPairs)}")
+    print(
+        tr(
+            f"[collision_view] geoms={geom.ngeoms}, pairs={len(geom.collisionPairs)}",
+            f"[碰撞检查] 几何体数={geom.ngeoms}, 碰撞对数={len(geom.collisionPairs)}",
+        )
+    )
 
     t, q = make_trajectory(args, q_min, q_max, np.random.default_rng(args.seed))
-    print(f"[collision_view] traj={args.traj} frames={len(t)} T={t[-1]:.1f}s")
+    print(
+        tr(
+            f"[collision_view] traj={args.traj} frames={len(t)} T={t[-1]:.1f}s",
+            f"[碰撞检查] 轨迹={args.traj} 帧数={len(t)} 时长={t[-1]:.1f}s",
+        )
+    )
 
     report = run_check(
         model, data, geom, gdata, t, q, args.subsample, args.ignore_base
     )
     print("-" * 50)
-    print(f"checked frames : {report['n_frames']}")
-    print(f"collision hits : {report['n_hit']}")
+    print(
+        tr(
+            f"checked frames : {report['n_frames']}",
+            f"检查帧数     : {report['n_frames']}",
+        )
+    )
+    print(
+        tr(
+            f"collision hits : {report['n_hit']}",
+            f"碰撞命中次数 : {report['n_hit']}",
+        )
+    )
     if report["ok"]:
-        print("result         : OK — COLLISION green（无非邻接碰撞）")
+        print(
+            tr(
+                "result         : OK — COLLISION green（无非邻接碰撞）",
+                "结果         : 通过 — 无非邻接碰撞（绿色）",
+            )
+        )
     else:
-        print("result         : HIT — COLLISION RED")
-        print("pairs          :", report["hit_pairs"][:8])
-        print("example frames :", report["hit_frames"][:8])
-        print("提示: 减小 --amplitude-scale，或加 --ignore-base 只查手臂自碰")
+        print(
+            tr(
+                "result         : HIT — COLLISION RED",
+                "结果         : 未通过 — 检测到碰撞（红色）",
+            )
+        )
+        print(tr("pairs          :", "碰撞对       :"), report["hit_pairs"][:8])
+        print(tr("example frames :", "示例帧       :"), report["hit_frames"][:8])
+        print(
+            tr(
+                "tip: try smaller --amplitude-scale, or --ignore-base for arm-only",
+                "提示: 减小 --amplitude-scale，或加 --ignore-base 只查手臂自碰",
+            )
+        )
     print("-" * 50)
 
     out = ROOT / "results" / f"collision_{args.traj}.txt"
@@ -344,18 +385,28 @@ def main() -> None:
         f"traj={args.traj}\nok={report['ok']}\nn_hit={report['n_hit']}\n"
         f"pairs={report['hit_pairs']}\n"
     )
-    print(f"saved -> {out}")
+    print(tr(f"saved -> {out}", f"已保存 → {out}"))
 
     if args.view:
         visuals = load_visual_meshes(urdf_path)
-        print(f"[collision_view] visual meshes={len(visuals)}")
+        print(
+            tr(
+                f"[collision_view] visual meshes={len(visuals)}",
+                f"[碰撞检查] 可视化网格数={len(visuals)}",
+            )
+        )
         try:
             run_viewer(
                 model, data, geom, gdata, visuals, t, q, ignore_base=args.ignore_base
             )
         except Exception as e:
-            print(f"[view] 打开窗口失败: {e}")
-            print("无桌面/OpenGL 时只用 --check-only")
+            print(tr(f"[view] failed to open window: {e}", f"[可视化] 打开窗口失败: {e}"))
+            print(
+                tr(
+                    "use --check-only without desktop/OpenGL",
+                    "无桌面/OpenGL 时只用 --check-only",
+                )
+            )
 
 
 if __name__ == "__main__":

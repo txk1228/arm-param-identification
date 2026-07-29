@@ -148,7 +148,8 @@ export PARAM_ID_URDF=$PWD/models/demo_7dof/demo_arm.urdf
 ## 快速上手（纯 Pinocchio，无需 Isaac）
 
 ```bash
-bash scripts/run_demo.sh
+bash scripts/run_demo.sh      # 英文终端输出
+bash scripts/run_demo_zh.sh   # 中文终端输出（读数提示更直观）
 ```
 
 或分步执行：
