@@ -2,7 +2,7 @@
 
 对照仓库已生成图表，说明指标含义、读图要点与复现命令。
 
-算法原理见 [`METHOD.md`](METHOD.md)；管线复现见 [`LEARNING.md`](LEARNING.md)；总览见 [`README.md`](README.md)。
+算法原理见 [`METHOD.md`](METHOD.md)；管线复现见 [`LEARNING.md`](LEARNING.md)；总览见根目录 [`README.md`](../../README.md)。
 
 > **数据说明（当前 `results/comparison/`）**  
 > 交叉对比默认尝试 Isaac Lab 实采；若仿真未启动，回退为  
@@ -36,7 +36,7 @@ bash scripts/run_demo.sh
 ### 1.2 Isaac 采集（需本机 Isaac Lab / GPU）
 
 完整命令见：  
-[`docs/zh/README.md` → Isaac Lab Demo](README.md#isaac-lab-demo带-gui--无头) · 英文 [`README.md`](../../README.md#isaac-lab-demo-gui--headless)
+[根目录 README → Isaac Lab Demo](../../README.md#isaac-lab-demo带-gui--无头) · 英文 [`README_EN.md`](../../README_EN.md#isaac-lab-demo-gui--headless)
 
 ```bash
 conda activate env_isaaclab

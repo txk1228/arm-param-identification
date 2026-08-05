@@ -2,8 +2,9 @@
 
 | Document | Language | Description |
 |----------|----------|-------------|
-| [../README.md](../README.md) | English | Project overview, Isaac GUI/headless demos, workflows |
-| [zh/README.md](zh/README.md) | 中文 | 项目总览、Isaac 带 GUI/无头 Demo、工作流 |
+| [../README.md](../README.md) | **中文** | 项目总览、Isaac 带 GUI/无头 Demo、工作流（GitHub 首页） |
+| [../README_EN.md](../README_EN.md) | English | English project overview |
+| [zh/README.md](zh/README.md) | 中文 | 指向根目录中文 README 的入口 |
 | [METHOD.md](METHOD.md) | English | Algorithms: regressors, QR, robust estimators |
 | [zh/METHOD.md](zh/METHOD.md) | **中文** | **算法原理：回归器、QR、鲁棒估计** |
 | [LEARNING.md](LEARNING.md) | English | Pipeline reproduction & module map |
@@ -17,7 +18,7 @@
 | [../assets/proprietary/README.md](../assets/proprietary/README.md) | English | Private URDF / mesh placement |
 
 **中文文档阅读顺序：**  
-[`zh/README.md`](zh/README.md) → [`zh/METHOD.md`](zh/METHOD.md) → [`zh/LEARNING.md`](zh/LEARNING.md) → [`zh/RESULTS_ANALYSIS.md`](zh/RESULTS_ANALYSIS.md)
+[`../README.md`](../README.md) → [`zh/METHOD.md`](zh/METHOD.md) → [`zh/LEARNING.md`](zh/LEARNING.md) → [`zh/RESULTS_ANALYSIS.md`](zh/RESULTS_ANALYSIS.md)
 
 ---
 
@@ -37,4 +38,4 @@ PARAM_ID_LANG=zh python scripts/identify_static.py --method robust_wls
 ```
 
 **环境：** `conda activate param-id`（方案 A）或 `env_isaaclab`（方案 B，含 Isaac）。  
-详见 [`zh/README.md`](zh/README.md) / [`../README.md`](../README.md)。
+详见 [`../README.md`](../README.md)（中文）/ [`../README_EN.md`](../README_EN.md)（English）。

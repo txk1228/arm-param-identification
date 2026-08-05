@@ -1,161 +1,167 @@
-# 7-DoF Arm Dynamics / Statics Parameter Identification
+# 七自由度机械臂动力学 / 静力学参数辨识
 
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
 [![Pinocchio](https://img.shields.io/badge/Pinocchio-2.x-green.svg)](https://stack-of-tasks.github.io/pinocchio/)
 [![Isaac Lab](https://img.shields.io/badge/Isaac_Lab-optional-orange.svg)](https://isaac-sim.github.io/IsaacLab/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Simulation and identification pipeline for **robot inertial and friction parameters** on a 7-DoF manipulator. The **algorithm layer** (regressors, QR base parameters, OLS / Huber / robust WLS) is decoupled from the **data layer** (Pinocchio synthesis or Isaac Lab collection) via a unified NPZ interface.
+基于 **Pinocchio** 的辨识算法 + 可选 **Isaac Lab** 物理采集层。算法层（回归矩阵、QR 基参数、OLS / Huber / 鲁棒 WLS）与数据层（Pinocchio 合成或 Isaac 采集）通过统一 NPZ 接口解耦，切换数据源时**无需修改核心辨识代码**。
 
-| Layer | Path | Role |
-|-------|------|------|
-| Algorithm | `param_id/` | Regressors, pivoted QR, OLS / Huber / whitened robust WLS |
-| Data I/O | `utils/` | NPZ schema, trajectories, PD law, noise, gravity feedforward |
-| Collection | `scripts/collect_data_isaaclab.py` | Optional PhysX acquisition (position servo / PD torque, friction, noise) |
-| Validation | `scripts/compare_*`, `verify_gravity_compensation.py` | Baseline alignment, cross-comparison, closed-loop GC |
+| 层次 | 目录 | 说明 |
+|------|------|------|
+| 算法层 | `param_id/` | 回归器、列主元 QR、OLS / Huber / 白化鲁棒 WLS |
+| 数据层 | `utils/` | NPZ 读写、轨迹、PD 控制律、噪声、重力前馈 |
+| 采集层 | `scripts/collect_data_isaaclab.py` | 位置伺服 / PD 力矩、摩擦、传感器噪声 |
+| 验证层 | `scripts/compare_*`、`verify_gravity_compensation.py` | 基准对齐、交叉对比、重力补偿闭环 |
 
-> **Scope:** Default Pinocchio paths synthesize torques from URDF ground truth (+ noise/outliers). Reported errors evaluate **methods and pipelines**, not hardware identification accuracy.
+> **说明：** 默认 Pinocchio 路径从 URDF 真值合成力矩（可加噪声/异常点），用于**方法与管线验证**，不代表真机辨识精度。
 
-**中文说明：** [`docs/zh/README.md`](docs/zh/README.md)
-
----
-
-## Documentation
-
-| Doc | Description |
-|-----|-------------|
-| [`docs/README.md`](docs/README.md) | Full documentation index (EN + 中文) |
-| [`docs/zh/METHOD.md`](docs/zh/METHOD.md) | **算法原理（中文）** / [EN](docs/METHOD.md) |
-| [`docs/zh/LEARNING.md`](docs/zh/LEARNING.md) | **管线复现（中文）** / [EN](docs/LEARNING.md) |
-| [`docs/zh/BASELINE_ALIGNMENT.md`](docs/zh/BASELINE_ALIGNMENT.md) | Baseline alignment（中文） |
-| [`docs/zh/RESULTS_ANALYSIS.md`](docs/zh/RESULTS_ANALYSIS.md) | How to read comparison figures |
-| [`docs/zh/README.md`](docs/zh/README.md) | 中文总览 |
-| [`results/README.md`](results/README.md) | Output directory layout |
+**English:** [`README_EN.md`](README_EN.md) · **算法原理：** [`docs/zh/METHOD.md`](docs/zh/METHOD.md) · **管线复现：** [`docs/zh/LEARNING.md`](docs/zh/LEARNING.md)
 
 ---
 
-## Pipeline
+## 文档导航
+
+| 文档 | 内容 |
+|------|------|
+| [`README.md`](README.md) | 本页：项目总览、环境、Isaac Demo、工作流 |
+| [`docs/zh/METHOD.md`](docs/zh/METHOD.md) | **算法原理**（回归器、QR、鲁棒估计） |
+| [`docs/zh/LEARNING.md`](docs/zh/LEARNING.md) | **管线复现**（分阶段执行 + 概念↔代码对照） |
+| [`docs/zh/BASELINE_ALIGNMENT.md`](docs/zh/BASELINE_ALIGNMENT.md) | Pinocchio vs Isaac 理想工况对齐（&lt; 5%） |
+| [`docs/zh/RESULTS_ANALYSIS.md`](docs/zh/RESULTS_ANALYSIS.md) | 指标解读、读图要点与复现命令 |
+| [`docs/zh/UPLOAD.md`](docs/zh/UPLOAD.md) | 公开仓库推送前检查 |
+| [`docs/README.md`](docs/README.md) | 文档总索引（中英对照） |
+| [`results/README.md`](results/README.md) | `results/` 输出目录说明 |
+| [`README_EN.md`](README_EN.md) | English overview |
+
+英文原文在 `docs/` 根目录（如 `docs/METHOD.md`）；中文在 `docs/zh/`。
+
+**推荐阅读顺序：** 本 README → [`METHOD.md`](docs/zh/METHOD.md) → [`LEARNING.md`](docs/zh/LEARNING.md) → [`RESULTS_ANALYSIS.md`](docs/zh/RESULTS_ANALYSIS.md)
+
+---
+
+## 整体流程
 
 ```text
-URDF (demo 7-DoF or your arm)
+URDF（教学 7-DoF 或自有机械臂）
         │
-        ├─ Pinocchio synthesize  ──┐
-        │   (RNEA + optional noise) │
-        │                           │
-        └─ Isaac Lab collect ───────┼──► unified NPZ {q, dq, ddq, tau, dt, traj_type}
-                                    │
-                                    ▼
-                     identify_static / identify_dynamic
-                     (--data-source pinocchio | file)
-                                    │
-                                    ▼
-                       pivoted QR → OLS / Huber / robust WLS
-                                    │
-                     ┌──────────────┼──────────────┐
-                     ▼              ▼              ▼
-               plots / NPZ   results/comparison/   gravity compensation
+        ├─ Pinocchio 合成力矩 ──┐
+        │   (RNEA + 可选噪声)   │
+        │                       │
+        └─ Isaac Lab 采集 ──────┼──► 统一 NPZ {q, dq, ddq, tau, dt, traj_type}
+                                │
+                                ▼
+                   identify_static / identify_dynamic
+                   (--data-source pinocchio | file)
+                                │
+                                ▼
+                     列主元 QR → OLS / Huber / robust WLS
+                                │
+                   ┌────────────┼────────────┐
+                   ▼            ▼            ▼
+             图表 / NPZ   results/comparison/   重力补偿验证
 ```
 
 ---
 
-## Repository structure
+## 仓库结构
 
 ```text
-param_id/                          # Project root
+arm-param-identification/          # 项目根目录
 │
-├── param_id/                      # Core identification package
-│   ├── regressor.py               # Gravity / dynamics / friction regressors
-│   ├── base_params.py             # Column-pivoted QR base-parameter selection
-│   ├── estimators.py              # OLS, Huber-IRLS, whitened robust WLS
-│   ├── trajectory.py              # Fourier & cosine excitation
-│   └── robot_model.py             # URDF resolve, Pinocchio model build
+├── README.md                      # 中文总览（本文件）
+├── README_EN.md                   # English overview
 │
-├── utils/                         # Data layer (decoupled from algorithms)
-│   ├── data_io.py                 # NPZ save/load + validation
-│   ├── traj_generator.py          # Trajectory facade
-│   ├── ddq.py                     # Ideal vs measured acceleration
-│   ├── collect_extras.py          # PD law, Gaussian noise, outliers
-│   └── gravity_comp.py            # Gravity torque from URDF or ID result
+├── param_id/                      # 核心辨识包
+│   ├── regressor.py               # 重力 / 动力学 / 摩擦回归矩阵
+│   ├── base_params.py             # 列主元 QR 基参数选取
+│   ├── estimators.py              # OLS、Huber-IRLS、白化鲁棒 WLS
+│   ├── trajectory.py              # 傅里叶 / 余弦激励轨迹
+│   └── robot_model.py             # URDF 解析、Pinocchio 模型构建
 │
-├── scripts/                       # CLI entry points
-│   ├── 00_sanity_check.py         # Regressor vs RNEA sanity check
-│   ├── identify_static.py         # Static ID (gravity + Coulomb friction)
-│   ├── identify_dynamic.py        # Dynamic ID (inertia + friction)
-│   ├── collect_data_isaaclab.py   # Isaac Lab data collection
-│   ├── export_pinocchio_dataset.py# Export ideal Pinocchio NPZ
+├── utils/                         # 数据层（与算法解耦）
+│   ├── data_io.py                 # NPZ 读写与校验
+│   ├── traj_generator.py          # 轨迹生成门面
+│   ├── ddq.py                     # 理想 / 实测加速度
+│   ├── collect_extras.py          # PD 控制律、高斯噪声、异常点
+│   └── gravity_comp.py            # URDF 或辨识结果的重力矩
+│
+├── scripts/                       # 命令行入口
+│   ├── 00_sanity_check.py         # 回归器 vs RNEA 自检
+│   ├── identify_static.py         # 静力学辨识（重力 + 库仑摩擦）
+│   ├── identify_dynamic.py        # 动力学辨识（惯量 + 摩擦）
+│   ├── collect_data_isaaclab.py   # Isaac Lab 数据采集
+│   ├── export_pinocchio_dataset.py# 导出理想 Pinocchio NPZ
 │   ├── compare_baseline_alignment.py
-│   ├── run_comparison.py          # Three-arm cross-comparison
+│   ├── run_comparison.py          # 三组交叉对比
 │   ├── verify_gravity_compensation.py
-│   ├── collision_view.py          # Trajectory collision check / viewer
-│   ├── run_demo.sh                # One-shot Pinocchio demo
+│   ├── collision_view.py          # 轨迹碰撞检查 / 可视化
+│   ├── run_demo.sh                # 一键 Pinocchio 演示
 │   ├── run_baseline_alignment.sh
 │   └── run_comparison_experiments.sh
 │
-├── models/demo_7dof/              # Public educational URDF (MIT)
+├── models/demo_7dof/              # 公开教学 URDF（MIT）
 │   └── demo_arm.urdf
 │
 ├── configs/
-│   └── comparison_experiment.yaml # Stage-6 experiment parameters
+│   └── comparison_experiment.yaml # 交叉对比实验参数
 │
-├── assets/proprietary/            # Local private CAD (gitignored)
+├── assets/proprietary/            # 本地私有 CAD（已 gitignore）
 │   └── README.md
 │
-├── docs/                          # Documentation (see docs/README.md)
+├── docs/                          # 文档（见 docs/README.md）
 │   ├── METHOD.md, LEARNING.md, BASELINE_ALIGNMENT.md, UPLOAD.md
-│   └── zh/                        # Chinese docs
-│       ├── README.md
+│   └── zh/                        # 中文文档
+│       ├── METHOD.md, LEARNING.md, …
 │       └── RESULTS_ANALYSIS.md
 │
-├── results/                       # Local outputs (see results/README.md)
-│   ├── examples/                  # Committed example figures
-│   ├── comparison/                # Cross-comparison showcase
-│   ├── gravity_comp/              # Gravity-comp verification
-│   └── baseline/                  # Alignment NPZ & metrics
+├── results/                       # 本地输出（见 results/README.md）
+│   ├── examples/                  # 已提交的示例图
+│   ├── comparison/                # 交叉对比展示
+│   ├── gravity_comp/              # 重力补偿验证
+│   └── baseline/                  # 基准对齐 NPZ 与指标
 │
-├── environment.yml                # Conda env (Pinocchio path)
-├── requirements.txt               # Pip deps (Isaac env supplement)
-├── pyrightconfig.json
+├── environment.yml                # Conda 环境（仅 Pinocchio）
+├── requirements.txt               # Pip 依赖（Isaac 环境补充）
 └── LICENSE
 ```
 
-`meshes/` and `assets/proprietary/urdf/` are gitignored — do not commit employer CAD.
+`meshes/` 与 `assets/proprietary/urdf/` 已加入 gitignore，**请勿将公司 CAD 推送到公开仓库**。
 
 ---
 
-## Environment
+## 环境配置
 
 ```bash
 cd /path/to/param_id
 
-# Option A: lightweight conda (Pinocchio only)
+# 方案 A：仅 Pinocchio（轻量）
 conda env create -f environment.yml
 conda activate param-id
 
-# Option B: Isaac Lab env (PhysX collection + validation)
+# 方案 B：含 Isaac Lab（推荐，支持 PhysX 采集）
 conda activate env_isaaclab
-pip install -r requirements.txt   # if anything is missing
+pip install -r requirements.txt   # 按需补齐依赖
 ```
 
-Set the demo URDF (or your own):
+指定 URDF：
 
 ```bash
 export PARAM_ID_URDF=$PWD/models/demo_7dof/demo_arm.urdf
 ```
 
-**Cursor / VS Code:** select the conda env `env_isaaclab` (or `param-id`) interpreter — not system `/bin/python3` (missing `matplotlib` / `pinocchio`).
+**Cursor / VS Code：** 解释器选 conda 环境 `env_isaaclab`（或 `param-id`）中的 Python，勿用系统 `/bin/python3`（缺少 `matplotlib` / `pinocchio`）。
 
 ---
 
-## Quick start (Pinocchio only)
-
-No Isaac required.
+## 快速上手（纯 Pinocchio，无需 Isaac）
 
 ```bash
-bash scripts/run_demo.sh
-# Chinese console: bash scripts/run_demo_zh.sh
+bash scripts/run_demo.sh      # 英文终端输出
+bash scripts/run_demo_zh.sh   # 中文终端输出（读数提示更直观）
 ```
 
-Or step by step:
+或分步执行：
 
 ```bash
 python scripts/00_sanity_check.py
@@ -164,16 +170,16 @@ python scripts/identify_dynamic.py --method robust_wls --outlier-ratio 0.05 --n-
 python scripts/collision_view.py   --traj fourier --check-only
 ```
 
-Outputs land in `results/` (NPZ + PNG). Custom URDF: `--urdf /path/to/arm.urdf`.
+输出在 `results/`（NPZ + PNG）。自定义机型：`--urdf /path/to/arm.urdf`。
 
 ---
 
-## Isaac Lab demo (GUI + headless)
+## Isaac Lab Demo（带 GUI / 无头）
 
-There is **no separate official Isaac scene pack**. The project demo is  
-`scripts/collect_data_isaaclab.py` (load URDF → track excitation → write NPZ).
+本仓库**没有**单独的 Isaac 官方场景包。演示入口为  
+`scripts/collect_data_isaaclab.py`（加载 URDF → 跟踪激励轨迹 → 写出 NPZ）。
 
-### Prerequisites
+### 前置
 
 ```bash
 conda activate env_isaaclab
@@ -181,13 +187,13 @@ cd /path/to/param_id
 export PARAM_ID_URDF=$PWD/models/demo_7dof/demo_arm.urdf
 ```
 
-> **Import order:** scripts import Pinocchio **before** `AppLauncher`.  
-> Starting Kit first then loading Pinocchio can make the app exit right after  
-> `Simulation App Startup Complete` (pybind conflict). Do not reorder those imports.
+> **导入顺序：** 脚本必须在 `AppLauncher` **之前**导入 Pinocchio。  
+> 若先启动 Kit 再加载 Pinocchio，会出现 `Startup Complete` 后立刻  
+> `Shutting Down`（pybind 冲突）。勿改动脚本中的 import 顺序。
 
-### A) GUI demo — visualize tracking
+### A) 带 GUI — 可视化跟踪
 
-Omit `--headless` so Isaac Sim opens a window:
+省略 `--headless`，Isaac Sim 打开窗口：
 
 ```bash
 python scripts/collect_data_isaaclab.py \
@@ -196,9 +202,9 @@ python scripts/collect_data_isaaclab.py \
   --save-path results/baseline/isaac_demo_fourier.npz
 ```
 
-Optional: `--device cuda:0` (AppLauncher). Close the window or wait until recording finishes; NPZ is written under `results/baseline/`.
+可选：`--device cuda:0`。录制结束或关闭窗口后，NPZ 写入 `results/baseline/`。
 
-### B) Headless demo — data only (no window)
+### B) 无头 — 仅采集
 
 ```bash
 python scripts/collect_data_isaaclab.py \
@@ -207,7 +213,7 @@ python scripts/collect_data_isaaclab.py \
   --save-path results/baseline/isaac_demo_fourier.npz
 ```
 
-### C) Engineering collection (closer to hardware)
+### C) 工程化采集（接近真机条件）
 
 ```bash
 python scripts/collect_data_isaaclab.py \
@@ -218,9 +224,9 @@ python scripts/collect_data_isaaclab.py \
   --save-path results/baseline/isaac_eng_fourier.npz
 ```
 
-For a GUI engineering run, drop `--headless` from the same command.
+若需 GUI，同一命令去掉 `--headless`。
 
-### D) Identify from the collected NPZ
+### D) 基于采集 NPZ 辨识
 
 ```bash
 python scripts/identify_dynamic.py --method robust_wls \
@@ -228,34 +234,34 @@ python scripts/identify_dynamic.py --method robust_wls \
   --results-dir results/isaac_dynamic
 ```
 
-### E) Gravity-compensation demo (Isaac)
+### E) 重力补偿验证（Isaac）
 
 ```bash
-# Headless hold + drag metrics
+# 无头：姿态保持 + 末端拖拽指标
 python scripts/verify_gravity_compensation.py --headless \
   --id-result results/static_ols.npz --out-dir results/gravity_comp
 
-# GUI: omit --headless
+# 带 GUI：去掉 --headless
 python scripts/verify_gravity_compensation.py \
   --id-result results/static_ols.npz --out-dir results/gravity_comp
 ```
 
-Offline (no Isaac): add `--offline`.
+纯离线（不启 Isaac）：加 `--offline`。
 
 ---
 
-## Unified dataset format
+## 统一数据格式
 
-All datasets use compressed NPZ via `utils/data_io.py`:
+`utils/data_io.py` 定义的 NPZ 字段：
 
-| Field | Type | Shape / value |
-|-------|------|----------------|
-| `q` | `float64` | `(N, n_joint)` |
-| `dq` | `float64` | `(N, n_joint)` |
-| `ddq` | `float64` | `(N, n_joint)` |
-| `tau` | `float64` | `(N, n_joint)` |
-| `dt` | `float` | sample period [s] |
-| `traj_type` | `str` | e.g. `isaac_dynamic_fourier_ideal` |
+| 字段 | 类型 | 形状 / 含义 |
+|------|------|-------------|
+| `q` | `float64` | `(N, n_joint)` 关节角 [rad] |
+| `dq` | `float64` | `(N, n_joint)` 角速度 |
+| `ddq` | `float64` | `(N, n_joint)` 角加速度 |
+| `tau` | `float64` | `(N, n_joint)` 关节力矩 [N·m] |
+| `dt` | `float` | 采样周期 [s] |
+| `traj_type` | `str` | 轨迹标签 |
 
 ```python
 from utils.data_io import save_dataset, load_dataset
@@ -263,123 +269,135 @@ from utils.data_io import save_dataset, load_dataset
 
 ---
 
-## Workflows
+## 工作流（递进）
 
-Stages follow dependency order: statics → dynamics → collection → baseline alignment → cross-comparison → closed-loop verification.
+任务按依赖顺序拆解：静力学 → 动力学 → 数据采集 → 基准对齐 → 交叉对比 → 闭环验证。
 
-### 1. Static identification (gravity compensation)
+### 1. 静力学辨识（重力补偿）
 
 | | |
 |--|--|
-| Trajectory | Slow cosine |
-| Estimates | Gravity-related terms + Coulomb friction |
-| Use case | Gravity feedforward |
+| 轨迹 | 低速余弦 |
+| 估计量 | 重力相关项 + 库仑摩擦 |
+| 用途 | 重力前馈 |
 
 ```bash
 python scripts/identify_static.py --method robust_wls
 ```
 
-### 2. Dynamic identification (torque feedforward)
+### 2. 动力学辨识（力矩前馈）
 
 | | |
 |--|--|
-| Trajectory | Fourier excitation |
-| Estimates | Inertia + Coriolis/centrifugal + gravity + Coulomb/viscous |
-| Use case | Model-based torque control |
+| 轨迹 | 傅里叶激励 |
+| 估计量 | 惯量 + 科氏/离心 + 重力 + 库仑/粘性摩擦 |
+| 用途 | 模型力矩控制 |
 
 ```bash
 python scripts/identify_dynamic.py --method robust_wls --n-periods 3
 ```
 
-### 3. Isaac Lab data collection
+### 3. Isaac Lab 数据采集
 
-Requires **Isaac Lab** (tested ~0.54 / Isaac Sim 5.x). Full GUI / headless demos: see **[Isaac Lab demo](#isaac-lab-demo-gui--headless)** above.
+需要 **Isaac Lab**（测试环境约 0.54 / Isaac Sim 5.x）。完整 GUI / 无头命令见上文 **[Isaac Lab Demo](#isaac-lab-demo带-gui--无头)**。
 
-| Flag | Meaning |
-|------|---------|
-| `--headless` | No GUI. Omit this flag to open the Isaac Sim window |
-| `--control-mode` | `position_servo` (implicit PD) or `pd_torque` (explicit τ = Kp·e + Kd·ė) |
-| `--ideal-physics` | Gravity only; no joint friction (baseline alignment) |
-| `--enable-friction` | PhysX static / Coulomb / viscous friction |
-| `--ddq-mode ideal\|measured` | Trajectory ddq or central-diff dq + MA filter |
-| `--q-noise-std` / `--tau-noise-std` | Sensor noise on logged position / torque |
-| `--data-source file` | On `identify_*`: load NPZ instead of synthesizing |
+| 参数 | 说明 |
+|------|------|
+| `--headless` | 无 GUI。省略此参数则打开 Isaac Sim 窗口 |
+| `--control-mode` | `position_servo`（隐式 PD）/ `pd_torque`（显式 τ = Kp·e + Kd·ė） |
+| `--ideal-physics` | 仅重力，关关节摩擦（基准对齐用） |
+| `--enable-friction` | PhysX 静摩擦 / 库仑 / 粘性 |
+| `--ddq-mode ideal\|measured` | 轨迹 ddq 或对 dq 中心差分 + 滑动平均 |
+| `--q-noise-std` / `--tau-noise-std` | 位置 / 力矩传感器噪声 |
+| `--data-source file` | 在 identify_* 中加载 NPZ，而非脚本内合成 |
 
-### 4. Baseline alignment (ideal physics)
+### 4. 基准对齐（理想物理）
 
-Same excitation on Pinocchio (RNEA, no friction) and Isaac (`--ideal-physics`). Pass gate: base-param relative error **&lt; 5%**.
+Pinocchio（RNEA、无摩擦）与 Isaac（`--ideal-physics`）在相同激励下对比，通过门槛：基参数相对误差 **&lt; 5%**。
 
 ```bash
 bash scripts/run_baseline_alignment.sh
-# Details: docs/BASELINE_ALIGNMENT.md
+# 详见 docs/zh/BASELINE_ALIGNMENT.md
 ```
 
-### 5. Cross-comparison showcase
+### 5. 交叉对比实验
 
-Three arms → `results/comparison/`:
+三组对照 → `results/comparison/`：
 
-1. **Baseline** — Pinocchio ideal + OLS (validate pipeline)
-2. **Physics** — Engineering data (PD + friction + noise) + OLS (observe degradation)
-3. **Robust** — Same engineering data + robust whitened WLS (compare inlier fit)
+1. **基准组** — Pinocchio 理想数据 + OLS（验证链路）
+2. **物理组** — 工程数据（PD + 摩擦 + 噪声）+ OLS（观察退化）
+3. **鲁棒组** — 同一工程数据 + robust WLS（对比内点拟合）
 
 ```bash
-bash scripts/run_comparison_experiments.sh          # tries Isaac; falls back to proxy
-bash scripts/run_comparison_experiments.sh --skip-isaac   # offline only
+bash scripts/run_comparison_experiments.sh          # 优先 Isaac，失败则代理数据
+bash scripts/run_comparison_experiments.sh --skip-isaac   # 纯离线
 ```
 
-Outputs: `fig_rmse_per_joint.png`, `fig_rel_param.png`, `fig_torque_joint0.png`, `conclusion.md`, `summary.json`.
+产出：`fig_rmse_per_joint.png`、`fig_rel_param.png`、`fig_torque_joint0.png`、`conclusion.md`、`summary.json`。
 
-### 6. Gravity compensation closed loop
+### 6. 重力补偿闭环验证
 
 ```bash
-# Offline residual metrics (no Isaac)
+# 离线残差（无需 Isaac）
 python scripts/verify_gravity_compensation.py --offline \
   --id-result results/static_ols.npz --out-dir results/gravity_comp
 
-# Isaac headless: hold test + end-effector drag
+# Isaac 无头：姿态保持 + 末端拖拽
 python scripts/verify_gravity_compensation.py --headless \
   --id-result results/static_ols.npz --out-dir results/gravity_comp
 
-# Isaac GUI: omit --headless
+# Isaac 带 GUI：去掉 --headless
 python scripts/verify_gravity_compensation.py \
   --id-result results/static_ols.npz --out-dir results/gravity_comp
 ```
 
-Feedforward: `τ = Kp(q*−q) + Kd(dq*−dq) + τ_g(q)` with `τ_g` from URDF RNEA or identified `π̂_g`.
+前馈律：`τ = Kp(q*−q) + Kd(dq*−dq) + τ_g(q)`，`τ_g` 来自 URDF RNEA 或辨识的 `π̂_g`。
 
 ---
 
-## Reading results
+## 结果解读
 
-| Experiment | What to look at |
-|------------|-----------------|
-| Ideal baseline | Torque RMSE ≈ 0; base-param error ≈ 0% → pipeline is correct |
-| Engineering OLS | High all-sample RMSE from outliers; **inlier RMSE** ~0.24 N·m |
-| Engineering robust WLS | **Inlier RMSE** ~0.05 N·m (≈5× better than OLS) |
-| Gravity comp offline | Identified GC residual ≈ machine precision vs RNEA |
+| 实验 | 关注指标 |
+|------|----------|
+| 理想基准组 | 力矩 RMSE ≈ 0，基参数误差 ≈ 0% → 管线正确 |
+| 工程 OLS | 全样本 RMSE 高（含异常点）；**内点 RMSE** 约 0.24 N·m |
+| 工程 robust WLS | **内点 RMSE** 约 0.05 N·m（相对 OLS 约 5×） |
+| 重力补偿离线 | 辨识重力补偿残差 ≈ 机器精度 |
 
-**Important:** On engineering data, **base-parameter relative error** can exceed 200–300% because torques include friction and outliers while the reference is friction-free URDF. This does **not** mean identification failed — use **inlier torque RMSE** and gravity-compensation residual as engineering metrics. See [`docs/zh/RESULTS_ANALYSIS.md`](docs/zh/RESULTS_ANALYSIS.md).
+### 关于工程组「基参数相对误差 300%」
 
-Example figures: [`results/examples/`](results/examples/), [`results/comparison/`](results/comparison/).
+工程组力矩 = 惯量动力学 + **摩擦** + 噪声 + 稀疏异常，对照真值为「URDF 惯量 + **摩擦=0**」。摩擦项被拟合进参数向量后，相对无摩擦真值会出现 200%–300% 的系统性偏差。
 
----
+该现象**不代表辨识失败**。工程指标应优先：
 
-## Method references
+- **力矩内点 RMSE**（OLS 0.24 → robust 0.05）
+- **重力补偿残差**
 
-- Statics / base parameters: [ScienceDirect 2019](https://www.sciencedirect.com/science/article/pii/S0736584518304411)
-- Dynamics ID / robust regression: [IEEE Xplore 9097291](https://ieeexplore.ieee.org/abstract/document/9097291/)
-- Stack: [Pinocchio](https://stack-of-tasks.github.io/pinocchio/), [Isaac Lab](https://isaac-sim.github.io/IsaacLab/) (optional)
+详见 [`docs/zh/RESULTS_ANALYSIS.md`](docs/zh/RESULTS_ANALYSIS.md)。
 
----
-
-## Disclaimer
-
-- Do **not** publish proprietary employer URDF/meshes without permission.
-- Default model is an **educational primitive arm** (MIT).
-- Simulation errors ≠ real-robot identification accuracy.
+示例图：[`results/examples/`](results/examples/)、[`results/comparison/`](results/comparison/)。
 
 ---
 
-## License
+## 两条辨识链路对照
 
-MIT — see [LICENSE](LICENSE).
+| | 静力学 | 动力学 |
+|--|--------|--------|
+| 轨迹 | 低速 cosine | 傅里叶 |
+| 回归 | 重力 + 库仑摩擦 | 惯量 + 科氏/离心 + 重力 + 库仑/粘性 |
+| 典型用途 | 重力补偿 | 力矩前馈 |
+| 推荐估计器 | robust_wls（含异常点时） | robust_wls |
+
+---
+
+## 公开仓库注意事项
+
+- `meshes/`、`assets/proprietary/` 下机型文件已 gitignore
+- 推送前确认无未授权 URDF / 网格（见 [`docs/zh/UPLOAD.md`](docs/zh/UPLOAD.md)）
+- 仿真误差 ≠ 真机辨识精度
+
+---
+
+## 许可
+
+MIT License — 见 [LICENSE](LICENSE)

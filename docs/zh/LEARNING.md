@@ -14,7 +14,7 @@ cd <repo-root>
 export PARAM_ID_URDF=$PWD/models/demo_7dof/demo_arm.urdf
 ```
 
-目录结构（完整树见 [中文 README](README.md) / [文档索引](../README.md)）：
+目录结构（完整树见 [中文 README](../../README.md) / [文档索引](../README.md)）：
 
 ```
 param_id/                 # 算法包

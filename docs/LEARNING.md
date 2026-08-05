@@ -14,7 +14,7 @@ cd <repo-root>
 export PARAM_ID_URDF=$PWD/models/demo_7dof/demo_arm.urdf
 ```
 
-Layout (full tree: [README.md](../README.md) / [docs/README.md](README.md)):
+Layout (full tree: [README.md](../README.md) 中文 / [README_EN.md](../README_EN.md) / [docs/README.md](README.md)):
 
 ```
 param_id/                 # Algorithm package
